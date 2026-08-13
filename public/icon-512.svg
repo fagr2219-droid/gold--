@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFD700" />
+      <stop offset="50%" stop-color="#E49A0A" />
+      <stop offset="100%" stop-color="#C88918" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0F1B33" />
+      <stop offset="100%" stop-color="#091225" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect x="24" y="24" width="464" height="464" rx="92" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-opacity="0.3" />
+  
+  <!-- Scale / Gold Balance Symbol -->
+  <g transform="translate(128, 120)" stroke="url(#goldGrad)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Center Post -->
+    <line x1="128" y1="40" x2="128" y2="240" />
+    <path d="M78 240 L178 240" />
+    <circle cx="128" cy="30" r="16" fill="url(#goldGrad)" />
+    
+    <!-- Balance Beam -->
+    <path d="M38 90 L218 90" stroke-width="18" />
+    
+    <!-- Left Pan -->
+    <path d="M38 90 L8 170 L68 170 Z" fill="url(#goldGrad)" fill-opacity="0.15" />
+    <!-- Right Pan -->
+    <path d="M218 90 L188 170 L248 170 Z" fill="url(#goldGrad)" fill-opacity="0.15" />
+  </g>
+</svg>

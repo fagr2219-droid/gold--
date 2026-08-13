@@ -1,0 +1,6 @@
+{
+  "name": "نظام إدارة وتوزيع الذهب",
+  "description": "نظام محاسبي متكامل لإدارة توزيع الذهب والمجوهرات بين الورش والموزعين والمحلات.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

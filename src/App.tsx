@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './lib/AuthContext';
 import { SideNavBar } from './components/SideNavBar';
 import { TopAppBar } from './components/TopAppBar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { MoreDrawer } from './components/MoreDrawer';
 import { QuickActionFAB } from './components/QuickActionFAB';
+import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import ReceiveFromWorkshop from './pages/ReceiveFromWorkshop';
 import Workshops from './pages/Workshops';
@@ -18,6 +20,7 @@ import MarketGold from './pages/MarketGold';
 import WorkshopReturns from './pages/WorkshopReturns';
 
 function AppContent() {
+  const { user, loading: authLoading } = useAuth();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
   const navigate = useNavigate();
@@ -35,6 +38,31 @@ function AppContent() {
       }
     } catch {}
   }, []);
+
+  // Show loading spinner while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" dir="rtl"
+        style={{ background: 'linear-gradient(135deg, #091225 0%, #0F1B33 40%, #1a2744 70%, #091225 100%)' }}
+      >
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 animate-pulse"
+            style={{ background: 'linear-gradient(135deg, #E49A0A, #C88918)' }}
+          >
+            <svg className="w-8 h-8 text-[#091225]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+            </svg>
+          </div>
+          <p className="text-slate-400 text-sm font-medium">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!user) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F3F6FA] flex text-[#101828]" dir="rtl">
@@ -93,8 +121,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <AuthProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </AuthProvider>
   );
 }

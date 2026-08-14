@@ -1,17 +1,7 @@
-import { openDB, IDBPDatabase } from 'idb';
-import { Workshop, Shop, InventoryItem, Transaction, Settings } from '../types';
+import { supabase } from './supabase';
+import { Workshop, Shop, InventoryItem, Transaction, Karat } from '../types';
 
-const DB_NAME = 'AurumLedgerDB';
-const DB_VERSION = 1;
 const SNAPSHOTS_STORAGE_KEY = 'aurum_gold_backup_snapshots';
-
-export interface DBModel {
-  workshops: Workshop;
-  shops: Shop;
-  inventory: InventoryItem;
-  transactions: Transaction;
-  settings: Settings;
-}
 
 export interface BackupSnapshot {
   id: string;
@@ -32,63 +22,271 @@ export interface BackupSnapshot {
   };
 }
 
-class StorageRepository {
-  private dbPromise: Promise<IDBPDatabase<any>>;
+// Helper: Convert DB row to Workshop
+function rowToWorkshop(row: any): Workshop {
+  return {
+    id: row.id,
+    name: row.name,
+    phone: row.phone || undefined,
+    address: row.address || undefined,
+    goldBalances: row.gold_balances || { 18: 0, 21: 0, 22: 0, 24: 0 },
+    laborBalance: Number(row.labor_balance) || 0,
+  };
+}
 
-  constructor() {
-    this.dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('workshops')) db.createObjectStore('workshops', { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('shops')) db.createObjectStore('shops', { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('inventory')) db.createObjectStore('inventory', { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('transactions')) db.createObjectStore('transactions', { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings');
-      },
-    });
+// Helper: Convert DB row to Shop
+function rowToShop(row: any): Shop {
+  return {
+    id: row.id,
+    name: row.name,
+    phone: row.phone || undefined,
+    address: row.address || undefined,
+    goldBalances: row.gold_balances || { 18: 0, 21: 0, 22: 0, 24: 0 },
+    laborBalance: Number(row.labor_balance) || 0,
+    workshopDueBalance: Number(row.workshop_due_balance) || 0,
+    profitBalance: Number(row.profit_balance) || 0,
+  };
+}
+
+class SupabaseStorageRepository {
+
+  // ==================== WORKSHOPS ====================
+  async getAllWorkshops(): Promise<Workshop[]> {
+    const { data, error } = await supabase
+      .from('workshops')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching workshops:', error);
+      return [];
+    }
+    return (data || []).map(rowToWorkshop);
   }
 
-  async getAll<K extends keyof DBModel>(store: K): Promise<DBModel[K][]> {
-    const db = await this.dbPromise;
-    return db.getAll(store);
+  async getWorkshopById(id: string): Promise<Workshop | undefined> {
+    const { data, error } = await supabase
+      .from('workshops')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return undefined;
+    return rowToWorkshop(data);
   }
 
-  async getById<K extends keyof DBModel>(store: K, id: string): Promise<DBModel[K] | undefined> {
-    const db = await this.dbPromise;
-    return db.get(store, id);
+  async saveWorkshop(workshop: Workshop): Promise<void> {
+    const { error } = await supabase
+      .from('workshops')
+      .upsert({
+        id: workshop.id,
+        name: workshop.name,
+        phone: workshop.phone || null,
+        address: workshop.address || null,
+        gold_balances: workshop.goldBalances,
+        labor_balance: workshop.laborBalance,
+      }, { onConflict: 'id' });
+
+    if (error) console.error('Error saving workshop:', error);
   }
 
-  async save<K extends keyof DBModel>(store: K, data: DBModel[K]): Promise<void> {
-    const db = await this.dbPromise;
-    await db.put(store, data);
+  async deleteWorkshop(id: string): Promise<void> {
+    const { error } = await supabase.from('workshops').delete().eq('id', id);
+    if (error) console.error('Error deleting workshop:', error);
   }
 
-  async delete<K extends keyof DBModel>(store: K, id: string): Promise<void> {
-    const db = await this.dbPromise;
-    await db.delete(store, id);
+  // ==================== SHOPS ====================
+  async getAllShops(): Promise<Shop[]> {
+    const { data, error } = await supabase
+      .from('shops')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching shops:', error);
+      return [];
+    }
+    return (data || []).map(rowToShop);
+  }
+
+  async getShopById(id: string): Promise<Shop | undefined> {
+    const { data, error } = await supabase
+      .from('shops')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return undefined;
+    return rowToShop(data);
+  }
+
+  async saveShop(shop: Shop): Promise<void> {
+    const { error } = await supabase
+      .from('shops')
+      .upsert({
+        id: shop.id,
+        name: shop.name,
+        phone: shop.phone || null,
+        address: shop.address || null,
+        gold_balances: shop.goldBalances,
+        labor_balance: shop.laborBalance,
+        workshop_due_balance: shop.workshopDueBalance,
+        profit_balance: shop.profitBalance,
+      }, { onConflict: 'id' });
+
+    if (error) console.error('Error saving shop:', error);
+  }
+
+  async deleteShop(id: string): Promise<void> {
+    const { error } = await supabase.from('shops').delete().eq('id', id);
+    if (error) console.error('Error deleting shop:', error);
+  }
+
+  // ==================== INVENTORY ====================
+  async getAllInventory(): Promise<InventoryItem[]> {
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching inventory:', error);
+      return [];
+    }
+    return (data || []).map(row => ({ ...row.data, id: row.id } as InventoryItem));
+  }
+
+  async getInventoryById(id: string): Promise<InventoryItem | undefined> {
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return undefined;
+    return { ...data.data, id: data.id } as InventoryItem;
+  }
+
+  async saveInventory(item: InventoryItem): Promise<void> {
+    const { id, ...rest } = item;
+    const { error } = await supabase
+      .from('inventory')
+      .upsert({
+        id,
+        data: rest,
+      }, { onConflict: 'id' });
+
+    if (error) console.error('Error saving inventory:', error);
+  }
+
+  async deleteInventory(id: string): Promise<void> {
+    const { error } = await supabase.from('inventory').delete().eq('id', id);
+    if (error) console.error('Error deleting inventory:', error);
+  }
+
+  // ==================== TRANSACTIONS ====================
+  async getAllTransactions(): Promise<Transaction[]> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching transactions:', error);
+      return [];
+    }
+    return (data || []).map(row => ({ ...row.data, id: row.id } as Transaction));
+  }
+
+  async getTransactionById(id: string): Promise<Transaction | undefined> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return undefined;
+    return { ...data.data, id: data.id } as Transaction;
+  }
+
+  async saveTransaction(tx: Transaction): Promise<void> {
+    const { id, ...rest } = tx;
+    const { error } = await supabase
+      .from('transactions')
+      .upsert({
+        id,
+        data: rest,
+      }, { onConflict: 'id' });
+
+    if (error) console.error('Error saving transaction:', error);
+  }
+
+  async deleteTransaction(id: string): Promise<void> {
+    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    if (error) console.error('Error deleting transaction:', error);
+  }
+
+  // ==================== GENERIC METHODS (matching old API) ====================
+
+  async getAll(store: string): Promise<any[]> {
+    switch (store) {
+      case 'workshops': return this.getAllWorkshops();
+      case 'shops': return this.getAllShops();
+      case 'inventory': return this.getAllInventory();
+      case 'transactions': return this.getAllTransactions();
+      default: return [];
+    }
+  }
+
+  async getById(store: string, id: string): Promise<any | undefined> {
+    switch (store) {
+      case 'workshops': return this.getWorkshopById(id);
+      case 'shops': return this.getShopById(id);
+      case 'inventory': return this.getInventoryById(id);
+      case 'transactions': return this.getTransactionById(id);
+      default: return undefined;
+    }
+  }
+
+  async save(store: string, data: any): Promise<void> {
+    switch (store) {
+      case 'workshops': return this.saveWorkshop(data);
+      case 'shops': return this.saveShop(data);
+      case 'inventory': return this.saveInventory(data);
+      case 'transactions': return this.saveTransaction(data);
+    }
+  }
+
+  async delete(store: string, id: string): Promise<void> {
+    switch (store) {
+      case 'workshops': return this.deleteWorkshop(id);
+      case 'shops': return this.deleteShop(id);
+      case 'inventory': return this.deleteInventory(id);
+      case 'transactions': return this.deleteTransaction(id);
+    }
   }
 
   async clearAll(): Promise<void> {
-    const db = await this.dbPromise;
-    const stores = ['workshops', 'shops', 'inventory', 'transactions'];
-    const tx = db.transaction(stores, 'readwrite');
-    for (const s of stores) {
-      await tx.objectStore(s).clear();
-    }
-    await tx.done;
+    // Delete all data for current user
+    await Promise.all([
+      supabase.from('workshops').delete().neq('id', ''),
+      supabase.from('shops').delete().neq('id', ''),
+      supabase.from('inventory').delete().neq('id', ''),
+      supabase.from('transactions').delete().neq('id', ''),
+    ]);
   }
 
-  // --- Automatic Snapshots & Backup System ---
+  // --- Snapshots (still localStorage for speed) ---
 
   async createSnapshot(label: string = 'نسخة تلقائية', isPreDemoSeed: boolean = false): Promise<BackupSnapshot | null> {
     try {
       const [workshops, shops, inventory, transactions] = await Promise.all([
-        this.getAll('workshops'),
-        this.getAll('shops'),
-        this.getAll('inventory'),
-        this.getAll('transactions'),
+        this.getAllWorkshops(),
+        this.getAllShops(),
+        this.getAllInventory(),
+        this.getAllTransactions(),
       ]);
 
-      // If database is completely empty and not a specific manual save, skip empty snapshots
       const totalRecords = workshops.length + shops.length + inventory.length + transactions.length;
       if (totalRecords === 0 && !isPreDemoSeed) {
         return null;
@@ -114,7 +312,6 @@ class StorageRepository {
       };
 
       const existingSnapshots = this.getSnapshots();
-      // Keep up to 20 most recent snapshots
       const updated = [snapshot, ...existingSnapshots.filter(s => s.id !== snapshot.id)].slice(0, 20);
       localStorage.setItem(SNAPSHOTS_STORAGE_KEY, JSON.stringify(updated));
 
@@ -145,28 +342,23 @@ class StorageRepository {
       // Save a safety snapshot of current state before replacing
       await this.createSnapshot('نسخة أمان قبل الاسترجاع');
 
-      const db = await this.dbPromise;
-      const stores = ['workshops', 'shops', 'inventory', 'transactions'];
-      const tx = db.transaction(stores, 'readwrite');
+      // Clear all current data
+      await this.clearAll();
 
-      for (const s of stores) {
-        await tx.objectStore(s).clear();
-      }
-
+      // Restore data
       for (const w of target.data.workshops || []) {
-        await tx.objectStore('workshops').put(w);
+        await this.saveWorkshop(w);
       }
       for (const s of target.data.shops || []) {
-        await tx.objectStore('shops').put(s);
+        await this.saveShop(s);
       }
       for (const i of target.data.inventory || []) {
-        await tx.objectStore('inventory').put(i);
+        await this.saveInventory(i);
       }
       for (const t of target.data.transactions || []) {
-        await tx.objectStore('transactions').put(t);
+        await this.saveTransaction(t);
       }
 
-      await tx.done;
       return true;
     } catch (e) {
       console.error('Failed to restore snapshot:', e);
@@ -176,10 +368,10 @@ class StorageRepository {
 
   async exportDatabaseToJSON(): Promise<string> {
     const [workshops, shops, inventory, transactions] = await Promise.all([
-      this.getAll('workshops'),
-      this.getAll('shops'),
-      this.getAll('inventory'),
-      this.getAll('transactions'),
+      this.getAllWorkshops(),
+      this.getAllShops(),
+      this.getAllInventory(),
+      this.getAllTransactions(),
     ]);
 
     const backupPayload = {
@@ -213,25 +405,18 @@ class StorageRepository {
       // Save safety snapshot before import
       await this.createSnapshot('نسخة أمان قبل الاستيراد');
 
-      const db = await this.dbPromise;
-      const stores = ['workshops', 'shops', 'inventory', 'transactions'];
-      const tx = db.transaction(stores, 'readwrite');
-
-      for (const s of stores) {
-        await tx.objectStore(s).clear();
-      }
+      // Clear all
+      await this.clearAll();
 
       const ws = Array.isArray(parsed.data.workshops) ? parsed.data.workshops : [];
       const sh = Array.isArray(parsed.data.shops) ? parsed.data.shops : [];
       const inv = Array.isArray(parsed.data.inventory) ? parsed.data.inventory : [];
       const tr = Array.isArray(parsed.data.transactions) ? parsed.data.transactions : [];
 
-      for (const w of ws) await tx.objectStore('workshops').put(w);
-      for (const s of sh) await tx.objectStore('shops').put(s);
-      for (const i of inv) await tx.objectStore('inventory').put(i);
-      for (const t of tr) await tx.objectStore('transactions').put(t);
-
-      await tx.done;
+      for (const w of ws) await this.saveWorkshop(w);
+      for (const s of sh) await this.saveShop(s);
+      for (const i of inv) await this.saveInventory(i);
+      for (const t of tr) await this.saveTransaction(t);
 
       return {
         success: true,
@@ -249,4 +434,4 @@ class StorageRepository {
   }
 }
 
-export const repository = new StorageRepository();
+export const repository = new SupabaseStorageRepository();

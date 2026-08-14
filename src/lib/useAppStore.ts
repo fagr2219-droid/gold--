@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from './AuthContext';
 import { repository } from './storage';
 import { Workshop, Shop, InventoryItem, Transaction, Karat } from '../types';
 import { suggestCollectionSplit, calculateWorkshopWageMetrics, calculateDistributionMetrics, calculateReturnMetrics } from './accounting';
 
 export function useAppStore() {
+  const { user } = useAuth();
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -11,19 +13,31 @@ export function useAppStore() {
   const [loading, setLoading] = useState(true);
 
   const refreshData = useCallback(async () => {
+    if (!user) {
+      setWorkshops([]);
+      setShops([]);
+      setInventory([]);
+      setTransactions([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const [w, s, i, t] = await Promise.all([
-      repository.getAll('workshops'),
-      repository.getAll('shops'),
-      repository.getAll('inventory'),
-      repository.getAll('transactions'),
-    ]);
-    setWorkshops(w);
-    setShops(s);
-    setInventory(i);
-    setTransactions(t.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    try {
+      const [w, s, i, t] = await Promise.all([
+        repository.getAll('workshops'),
+        repository.getAll('shops'),
+        repository.getAll('inventory'),
+        repository.getAll('transactions'),
+      ]);
+      setWorkshops(w);
+      setShops(s);
+      setInventory(i);
+      setTransactions(t.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    } catch (err) {
+      console.error('Error refreshing data:', err);
+    }
     setLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     refreshData();
@@ -199,7 +213,6 @@ export function useAppStore() {
           totalLaborCancelled += cancelledLabor;
 
           // Deduct certified returned gold weight from workshop balance
-          // Note: May become negative if distributor overpaid/prepaid (credit balance)
           workshop.goldBalances[item.karat] = Number(
             ((workshop.goldBalances[item.karat] || 0) - returnWeight).toFixed(3)
           );
@@ -400,9 +413,7 @@ export function useAppStore() {
     await repository.save('workshops', w1);
     await repository.save('shops', s1);
     
-    // Seed item matching the user's exact specification:
-    // Batch Available: 360.67g (Original: 360.67g), Count: 24 pieces (optional), Karat: 21, Total Voucher: 541,000 YER
-    // Derived Wage: 541,000 / 360.67 = 1,499.986... Approx: 1,500 YER/g
+    // Seed item matching the user's exact specification
     const seedItem: InventoryItem = {
       id: 'inv-seed-1',
       category: 'محابس',
@@ -523,5 +534,3 @@ export function useAppStore() {
     refreshData
   };
 }
-
-

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../lib/AuthContext';
 import { 
   Menu, 
   PlusCircle, 
@@ -16,7 +17,8 @@ import {
   Wifi,
   WifiOff,
   Sparkles,
-  Database
+  Database,
+  LogOut
 } from 'lucide-react';
 import { usePwa } from '../lib/usePwa';
 import { useAppStore } from '../lib/useAppStore';
@@ -30,6 +32,7 @@ interface TopAppBarProps {
 export function TopAppBar({ onToggleMobileMenu }: TopAppBarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, signOut } = useAuth();
   const { isOnline, isInstallable, isInstalled, promptInstall } = usePwa();
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -200,10 +203,17 @@ export function TopAppBar({ onToggleMobileMenu }: TopAppBarProps) {
             <Sparkles className="w-4 h-4 text-[#E49A0A]" />
           </button>
 
-          {/* User Profile Avatar */}
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center border border-white/10 text-slate-300 cursor-pointer">
-            <UserCircle className="w-5 h-5 text-[#E49A0A]" />
-          </div>
+          {/* User Profile & Sign Out */}
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-white/10 hover:bg-red-500/20 text-slate-300 hover:text-red-300 transition-all cursor-pointer group"
+            title="تسجيل الخروج"
+          >
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#E49A0A] to-[#C88918] flex items-center justify-center text-[#091225] text-xs font-black">
+              {user?.email?.charAt(0).toUpperCase() || '؟'}
+            </div>
+            <LogOut className="w-4 h-4 group-hover:text-red-400 transition-colors" />
+          </button>
         </div>
       </header>
 

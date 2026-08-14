@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../lib/useAppStore';
 import { calculateDistributionMetrics } from '../lib/accounting';
 import { formatCurrency, formatWeight, formatApprox, cn } from '../lib/utils';
 import { 
   Package, Truck, Store, CheckCircle, Trash2, Tag, 
   TrendingUp, DollarSign, Calculator, Info, ArrowLeftRight,
-  Layers, AlertCircle, Sparkles, Hash, Scale
+  Layers, AlertCircle, Sparkles, Hash, Scale, Eye, EyeOff
 } from 'lucide-react';
 import { InventoryItem, PricingMode, ShopWageMethod, TransactionItem } from '../types';
 import { VoucherPreviewModal } from '../components/VoucherPreviewModal';
 import { useVoucherSettings } from '../lib/useVoucherSettings';
 import { buildDistributionVoucherDTO, CustomerVoucherDTO } from '../types/voucherTypes';
+import { SensitiveAmount } from '../components/SensitiveAmount';
 
 interface SelectedDistributionItem {
   inventoryItem: InventoryItem;
@@ -35,6 +36,21 @@ export default function DistributionToShop() {
   const [selectedItems, setSelectedItems] = useState<SelectedDistributionItem[]>([]);
   const [voucherDto, setVoucherDto] = useState<CustomerVoucherDTO | null>(null);
   const [voucherTxId, setVoucherTxId] = useState<string>('');
+
+  // ── وضع الخصوصية ── الإخفاء دائماً افتراضي، لا يُحفظ في localStorage
+  const [showInternal, setShowInternal] = useState(false);
+
+  // إخفاء تلقائي عند مغادرة التبويب أو الصفحة
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') setShowInternal(false);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      setShowInternal(false); // إخفاء عند unmount (مغادرة الصفحة)
+    };
+  }, []);
 
   // Available inventory batches (only items with available weight > 0)
   const availableInventory = inventory.filter(item => {
@@ -488,6 +504,25 @@ export default function DistributionToShop() {
 
                     {/* Wage Calculation Mode & Pricing Controls */}
                     <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                      {/* ── زر وضع الخصوصية ── */}
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setShowInternal(v => !v)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all select-none",
+                            showInternal
+                              ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
+                              : "bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200"
+                          )}
+                          aria-pressed={showInternal}
+                        >
+                          {showInternal
+                            ? <><Eye className="w-3.5 h-3.5" /> إخفاء حساباتي الداخلية</>
+                            : <><EyeOff className="w-3.5 h-3.5" /> إظهار حساباتي الداخلية</>
+                          }
+                        </button>
+                      </div>
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
                         <span className="text-xs font-bold text-slate-700">طريقة احتساب أجور المحل:</span>
                         
@@ -545,9 +580,13 @@ export default function DistributionToShop() {
 
                             <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                               <span className="text-[11px] text-slate-500 block mb-1">أجرة الورشة المستخرجة:</span>
-                              <span className="font-mono font-bold text-slate-700 text-sm block">
-                                ~{formatApprox(inv.derivedWorkshopWagePerGram)} <small>ر.ي/جم</small>
-                              </span>
+                              <SensitiveAmount
+                                visible={showInternal}
+                                value={`~${formatApprox(inv.derivedWorkshopWagePerGram)}`}
+                                unit="ر.ي/جم"
+                                className="font-bold text-slate-700 text-sm block"
+                                unitClassName="text-slate-500"
+                              />
                             </div>
                           </>
                         )}
@@ -589,9 +628,13 @@ export default function DistributionToShop() {
                           <span className="text-[11px] text-blue-900 font-bold block mb-1">
                             تكلفة الورشة المخصصة للكمية:
                           </span>
-                          <span className="font-mono font-bold text-blue-700 text-sm block">
-                            {formatCurrency(metrics.allocatedWorkshopCost)} <small>ر.ي</small>
-                          </span>
+                          <SensitiveAmount
+                            visible={showInternal}
+                            value={formatCurrency(metrics.allocatedWorkshopCost)}
+                            unit="ر.ي"
+                            className="font-bold text-blue-700 text-sm block"
+                            unitClassName="text-blue-400"
+                          />
                         </div>
 
                         {/* Total Shop Wage & Expected Profit */}
@@ -608,9 +651,11 @@ export default function DistributionToShop() {
                       {/* Profit Callout */}
                       <div className="flex justify-between items-center bg-emerald-50 px-3 py-1.5 rounded-lg text-xs border border-emerald-100">
                         <span className="text-emerald-800 font-medium">صافي الربح المتوقع من هذه الكمية الموزعة:</span>
-                        <span className="font-mono font-bold text-emerald-700 text-sm">
-                          {formatCurrency(metrics.expectedProfit)} ر.ي
-                        </span>
+                        <SensitiveAmount
+                          visible={showInternal}
+                          value={`${formatCurrency(metrics.expectedProfit)} ر.ي`}
+                          className="font-bold text-emerald-700 text-sm"
+                        />
                       </div>
                     </div>
 
@@ -683,9 +728,13 @@ export default function DistributionToShop() {
               {/* Allocated Workshop Cost */}
               <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5">
                 <span className="text-slate-400">تكلفة الورشة المخصصة للكمية:</span>
-                <span className="font-mono font-bold text-blue-400 text-base">
-                  {formatCurrency(totalAllocatedWorkshopCost)} <small className="text-xs text-slate-400">ر.ي</small>
-                </span>
+                <SensitiveAmount
+                  visible={showInternal}
+                  value={formatCurrency(totalAllocatedWorkshopCost)}
+                  unit="ر.ي"
+                  className="font-bold text-blue-400 text-base"
+                  unitClassName="text-xs text-slate-400"
+                />
               </div>
 
               {/* Net Expected Profit */}
@@ -695,7 +744,14 @@ export default function DistributionToShop() {
                     إجمالي الربح المتوقع
                   </span>
                   <div className="text-3xl font-mono font-bold text-amber-400" dir="ltr">
-                    {formatCurrency(totalExpectedProfit)} <span className="text-sm font-normal text-white">ر.ي</span>
+                    <SensitiveAmount
+                      visible={showInternal}
+                      value={formatCurrency(totalExpectedProfit)}
+                      unit="ر.ي"
+                      className="font-black"
+                      unitClassName="text-sm font-normal text-white"
+                      dotCount={8}
+                    />
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1">
                     محسوب من الإجماليات الدقيقة وفق نسبة الوزن الموزع من إجمالي السند الأصلي.

@@ -226,7 +226,7 @@ export default function DistributionToShop() {
         <div>
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <Truck className="w-7 h-7 text-amber-500" />
-            توزيع بضاعة للمحلات (دعم التوزيع الجزئي من الدفعات)
+            توزيع بضاعة للمحلات — سندات صرف
           </h2>
           <p className="text-slate-500 text-sm mt-1">
             إمكانية توزيع جزء من الدفعة واحتساب تكلفة الورشة والأرباح بدقة النسبة والتناسب مع بقاء الرصيد المتبقي في المخزون.

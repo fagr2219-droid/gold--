@@ -31,6 +31,9 @@ import {
   DollarSign
 } from 'lucide-react';
 import { PrintVoucher } from '../components/PrintVoucher';
+import { VoucherPreviewModal } from '../components/VoucherPreviewModal';
+import { useVoucherSettings } from '../lib/useVoucherSettings';
+import { buildCollectionVoucherDTO, CustomerVoucherDTO } from '../types/voucherTypes';
 import { 
   Karat, 
   CollectionItem, 
@@ -43,8 +46,10 @@ import {
 
 export default function Collections() {
   const { shops, transactions, addTransaction } = useAppStore();
+  const { getIdentitySnapshot } = useVoucherSettings();
   const [selectedShopId, setSelectedShopId] = useState('s1');
   const [printData, setPrintData] = useState<any>(null);
+  const [voucherModal, setVoucherModal] = useState<{ dto: CustomerVoucherDTO; txId: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'NEW_VOUCHER' | 'HISTORY'>('NEW_VOUCHER');
   const [voucherNotes, setVoucherNotes] = useState('');
 
@@ -299,12 +304,12 @@ export default function Collections() {
 
     await addTransaction(tx);
 
-    setPrintData({
-      ...tx,
-      companyName: 'مؤسسة الذهب والمجوهرات',
-    });
+    // Build customer-facing voucher (no internal profit/workshop data)
+    const identity = getIdentitySnapshot();
+    const selectedShopObj = shops.find(s => s.id === selectedShopId);
+    const dto = buildCollectionVoucherDTO(tx, selectedShopObj, identity);
+    setVoucherModal({ dto, txId: tx.id });
 
-    alert('تم حفظ وترحيل سند التحصيل بنجاح');
     setItems([]);
     setVoucherNotes('');
   };
@@ -341,13 +346,12 @@ export default function Collections() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Print Voucher Modal */}
-      {printData && (
-        <PrintVoucher 
-          title="سند قبض"
-          type="Thermal80" 
-          data={printData} 
-          onClose={() => setPrintData(null)} 
+      {/* Customer Voucher Preview Modal */}
+      {voucherModal && (
+        <VoucherPreviewModal
+          transactionId={voucherModal.txId}
+          dto={voucherModal.dto}
+          onClose={() => setVoucherModal(null)}
         />
       )}
 
@@ -1171,10 +1175,26 @@ export default function Collections() {
                       </td>
                       <td className="p-3.5 text-center">
                         <div className="flex items-center justify-center gap-1.5">
+                          {/* Customer Voucher Button - ONLY for original collection vouchers */}
+                          {tx.type === 'COLLECT_FROM_SHOP' && (
+                            <button
+                              onClick={() => {
+                                const identity = getIdentitySnapshot();
+                                const shop = shops.find(s => s.id === tx.entityId);
+                                if (!shop) return;
+                                const dto = buildCollectionVoucherDTO(tx, shop, identity);
+                                setVoucherModal({ dto, txId: tx.id });
+                              }}
+                              className="flex items-center gap-1 p-1.5 bg-[#FFF7E5] hover:bg-[#E49A0A] text-[#C88918] hover:text-[#091225] rounded-lg transition-colors cursor-pointer border border-[#E49A0A]/30"
+                              title="سند العميل (PDF + طباعة)"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => setPrintData(tx)}
                             className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer"
-                            title="طباعة السند"
+                            title="طباعة السند الداخلي"
                           >
                             <Printer className="w-4 h-4" />
                           </button>

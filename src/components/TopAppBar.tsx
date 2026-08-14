@@ -52,6 +52,7 @@ export function TopAppBar({ onToggleMobileMenu }: TopAppBarProps) {
       case '/returns': return 'مرتجع من محل';
       case '/collections': return 'سند تحصيل وقبض';
       case '/gold-scrap': return 'ذهب الكسر';
+      case '/voucher-settings': return 'بياناتي وهوية السند';
       default: return 'إدارة الذهب';
     }
   };

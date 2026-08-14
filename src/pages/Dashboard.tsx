@@ -6,6 +6,9 @@ import { calculateMarketGoldMetrics } from '../lib/accounting';
 import { MetricCard } from '../components/ui/MetricCard';
 import { BackupRestoreModal } from '../components/BackupRestoreModal';
 import { SeedConfirmModal } from '../components/SeedConfirmModal';
+import { VoucherPreviewModal } from '../components/VoucherPreviewModal';
+import { useVoucherSettings } from '../lib/useVoucherSettings';
+import { buildDistributionVoucherDTO, buildCollectionVoucherDTO, CustomerVoucherDTO } from '../types/voucherTypes';
 import { 
   Package, 
   Users, 
@@ -22,16 +25,32 @@ import {
   TrendingUp,
   AlertCircle,
   Database,
-  RotateCcw
+  RotateCcw,
+  FileText
 } from 'lucide-react';
 import { Karat } from '../types';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { workshops, shops, inventory, transactions, undoPreDemoSeed, getSnapshots, loading } = useAppStore();
+  const { getIdentitySnapshot } = useVoucherSettings();
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [showSeedModal, setShowSeedModal] = useState(false);
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null);
+  const [activeVoucher, setActiveVoucher] = useState<{ dto: CustomerVoucherDTO; txId: string } | null>(null);
+
+  const openVoucher = (tx: any) => {
+    const identity = getIdentitySnapshot();
+    const shop = shops.find(s => s.id === tx.entityId);
+    if (!shop) return;
+    let dto: CustomerVoucherDTO;
+    if (tx.type === 'DISTRIBUTE_TO_SHOP') {
+      dto = buildDistributionVoucherDTO(tx, shop, identity);
+    } else if (tx.type === 'COLLECT_FROM_SHOP') {
+      dto = buildCollectionVoucherDTO(tx, shop, identity);
+    } else return;
+    setActiveVoucher({ dto, txId: tx.id });
+  };
 
   const snapshots = useMemo(() => getSnapshots(), [getSnapshots]);
   const preDemoSnapshot = snapshots.find(s => s.isPreDemoSeed);
@@ -312,6 +331,7 @@ export default function Dashboard() {
                   <th className="p-3 text-center">الوزن الصافي</th>
                   <th className="p-3 text-center">إجمالي الأجور</th>
                   <th className="p-3 text-center">الحالة</th>
+                  <th className="p-3 text-center">سند العميل</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#DDE4EC]">
@@ -349,6 +369,18 @@ export default function Dashboard() {
                         <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-200 bg-[#EAFBF4] text-[#07875F] font-bold">
                           معتمد محاسبياً
                         </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        {(tx.type === 'DISTRIBUTE_TO_SHOP' || tx.type === 'COLLECT_FROM_SHOP') && (
+                          <button
+                            onClick={() => openVoucher(tx)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#FFF7E5] border border-[#E49A0A]/30 text-[#C88918] text-[10px] font-bold hover:bg-[#E49A0A] hover:text-[#091225] transition-all cursor-pointer mx-auto"
+                            title="عرض سند العميل"
+                          >
+                            <FileText className="w-3 h-3" />
+                            سند العميل
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -390,12 +422,21 @@ export default function Dashboard() {
 
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 font-mono">
                     <span className="text-slate-500 text-[10px]">{new Date(tx.date).toLocaleDateString('ar-EG')}</span>
-                    <div className="flex gap-2.5">
+                    <div className="flex gap-2.5 items-center">
                       {netWeight > 0 && (
                         <span className="font-bold text-[#0F1B33]">{formatWeight(netWeight)} جم</span>
                       )}
                       {totalWages > 0 && (
                         <span className="font-bold text-[#C88918]">{formatCurrency(totalWages)} ر.ي</span>
+                      )}
+                      {(tx.type === 'DISTRIBUTE_TO_SHOP' || tx.type === 'COLLECT_FROM_SHOP') && (
+                        <button
+                          onClick={() => openVoucher(tx)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#FFF7E5] border border-[#E49A0A]/30 text-[#C88918] text-[9px] font-bold hover:bg-[#E49A0A] hover:text-[#091225] transition-all cursor-pointer"
+                        >
+                          <FileText className="w-3 h-3" />
+                          سند
+                        </button>
                       )}
                     </div>
                   </div>
@@ -475,6 +516,15 @@ export default function Dashboard() {
         isOpen={showSeedModal}
         onClose={() => setShowSeedModal(false)}
       />
+
+      {/* Customer Voucher Preview */}
+      {activeVoucher && (
+        <VoucherPreviewModal
+          transactionId={activeVoucher.txId}
+          dto={activeVoucher.dto}
+          onClose={() => setActiveVoucher(null)}
+        />
+      )}
     </div>
   );
 }

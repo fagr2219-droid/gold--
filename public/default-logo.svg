@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Background circle -->
+  <circle cx="60" cy="60" r="58" fill="#0F1B33" stroke="#E49A0A" stroke-width="2.5"/>
+  
+  <!-- Balance scale beam -->
+  <line x1="25" y1="48" x2="95" y2="48" stroke="#E49A0A" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Center pole -->
+  <line x1="60" y1="48" x2="60" y2="82" stroke="#E49A0A" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Center pivot diamond -->
+  <polygon points="60,42 64,48 60,54 56,48" fill="#E49A0A"/>
+  
+  <!-- Left pan string -->
+  <line x1="30" y1="48" x2="26" y2="62" stroke="#C88918" stroke-width="1.5"/>
+  <line x1="30" y1="48" x2="34" y2="62" stroke="#C88918" stroke-width="1.5"/>
+  <!-- Right pan string -->
+  <line x1="90" y1="48" x2="86" y2="62" stroke="#C88918" stroke-width="1.5"/>
+  <line x1="90" y1="48" x2="94" y2="62" stroke="#C88918" stroke-width="1.5"/>
+  
+  <!-- Left pan -->
+  <rect x="22" y="62" width="16" height="5" rx="2.5" fill="#E49A0A"/>
+  <!-- Right pan -->
+  <rect x="82" y="62" width="16" height="5" rx="2.5" fill="#E49A0A"/>
+  
+  <!-- Base -->
+  <rect x="50" y="82" width="20" height="4" rx="2" fill="#E49A0A"/>
+  <rect x="44" y="86" width="32" height="3" rx="1.5" fill="#C88918"/>
+  
+  <!-- Arabic letters م ع centered -->
+  <text x="60" y="38" font-family="'Tajawal', 'Arial', sans-serif" font-size="14" font-weight="900" fill="#E49A0A" text-anchor="middle" dominant-baseline="middle">م ع</text>
+  
+  <!-- Gold dots decoration -->
+  <circle cx="25" cy="95" r="2" fill="#E49A0A" opacity="0.6"/>
+  <circle cx="95" cy="95" r="2" fill="#E49A0A" opacity="0.6"/>
+  <circle cx="60" cy="102" r="1.5" fill="#E49A0A" opacity="0.4"/>
+</svg>

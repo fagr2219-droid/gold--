@@ -17,7 +17,8 @@ import {
   Sparkles,
   Wifi,
   WifiOff,
-  ShieldCheck
+  ShieldCheck,
+  FileText
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { usePwa } from '../lib/usePwa';
@@ -43,6 +44,12 @@ const navSections = [
       { path: '/returns', label: 'مرتجع من محل', icon: RotateCcw },
       { path: '/gold-scrap', label: 'ذهب الكسر', icon: Flame },
       { path: '/shops', label: 'دليل المحلات', icon: Users },
+    ]
+  },
+  {
+    title: 'الهوية والسندات',
+    items: [
+      { path: '/voucher-settings', label: 'بياناتي وهوية السند', icon: FileText },
     ]
   }
 ];

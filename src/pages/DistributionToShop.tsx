@@ -8,7 +8,9 @@ import {
   Layers, AlertCircle, Sparkles, Hash, Scale
 } from 'lucide-react';
 import { InventoryItem, PricingMode, ShopWageMethod, TransactionItem } from '../types';
-import { PrintVoucher } from '../components/PrintVoucher';
+import { VoucherPreviewModal } from '../components/VoucherPreviewModal';
+import { useVoucherSettings } from '../lib/useVoucherSettings';
+import { buildDistributionVoucherDTO, CustomerVoucherDTO } from '../types/voucherTypes';
 
 interface SelectedDistributionItem {
   inventoryItem: InventoryItem;
@@ -28,9 +30,11 @@ interface SelectedDistributionItem {
 
 export default function DistributionToShop() {
   const { shops, inventory, addTransaction } = useAppStore();
+  const { getIdentitySnapshot } = useVoucherSettings();
   const [selectedShopId, setSelectedShopId] = useState('');
   const [selectedItems, setSelectedItems] = useState<SelectedDistributionItem[]>([]);
-  const [printData, setPrintData] = useState<any>(null);
+  const [voucherDto, setVoucherDto] = useState<CustomerVoucherDTO | null>(null);
+  const [voucherTxId, setVoucherTxId] = useState<string>('');
 
   // Available inventory batches (only items with available weight > 0)
   const availableInventory = inventory.filter(item => {
@@ -181,29 +185,23 @@ export default function DistributionToShop() {
 
     await addTransaction(tx);
 
-    setPrintData({
-      ...tx,
-      companyName: 'نظام إدارة وتوزيع الذهب',
-      currency: 'ر.ي',
-      items: txItems.map(it => ({
-        ...it,
-        weight: it.netWeight,
-      }))
-    });
+    // Build customer-facing DTO (no internal costs/profits)
+    const identity = getIdentitySnapshot();
+    const dto = buildDistributionVoucherDTO(tx, shop, identity);
+    setVoucherDto(dto);
+    setVoucherTxId(txId);
 
-    alert('تم تنفيذ التوزيع بنجاح! تم خصم الوزن الموزع من الدفعة مع إبقاء الرصيد المتبقي في المخزون.');
     setSelectedItems([]);
     setSelectedShopId('');
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {printData && (
-        <PrintVoucher 
-          title="فاتورة وسند توزيع بضاعة لمحل" 
-          type="Thermal80" 
-          data={printData} 
-          onClose={() => setPrintData(null)} 
+      {voucherDto && (
+        <VoucherPreviewModal
+          transactionId={voucherTxId}
+          dto={voucherDto}
+          onClose={() => setVoucherDto(null)}
         />
       )}
 

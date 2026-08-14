@@ -152,3 +152,84 @@ input, select, textarea {
     min-height: 46px;
   }
 }
+
+/* =====================================================
+   PRINT STYLES - Customer Voucher
+   ===================================================== */
+@media print {
+  /* Hide all app chrome */
+  header,
+  nav,
+  aside,
+  footer,
+  .no-print,
+  [data-sidebar],
+  [data-topbar],
+  .mobile-bottom-nav,
+  .quick-action-fab {
+    display: none !important;
+  }
+
+  /* Reset body for printing */
+  body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide profit / internal data always */
+  .internal-only,
+  .profit-section,
+  .workshop-section,
+  .workshop-cost-row {
+    display: none !important;
+  }
+
+  /* A4 print mode */
+  body.printing-a4 {
+    /* Show only A4 voucher */
+  }
+
+  body.printing-a4 #customer-voucher-58mm-wrapper,
+  body.printing-a4 .voucher-58mm-wrapper {
+    display: none !important;
+  }
+
+  body.printing-a4 #customer-voucher-a4 {
+    display: block !important;
+  }
+
+  body.printing-a4 .voucher-a4-wrapper {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  /* 58mm print mode */
+  body.printing-58mm #customer-voucher-a4,
+  body.printing-58mm .voucher-a4-wrapper {
+    display: none !important;
+  }
+
+  body.printing-58mm #customer-voucher-58mm {
+    display: block !important;
+  }
+
+  /* Generic: if no class set, print the visible voucher */
+  #customer-voucher-a4,
+  #customer-voucher-58mm {
+    page-break-inside: avoid;
+  }
+}
+
+/* 58mm page size - separate media to avoid invalid nesting */
+@media print {
+  body.printing-58mm {
+    width: 58mm;
+  }
+}

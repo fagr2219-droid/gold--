@@ -18,6 +18,7 @@ import Collections from './pages/Collections';
 import GoldScrap from './pages/GoldScrap';
 import MarketGold from './pages/MarketGold';
 import WorkshopReturns from './pages/WorkshopReturns';
+import VoucherSettingsPage from './pages/VoucherSettingsPage';
 
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
@@ -82,6 +83,7 @@ function AppContent() {
             <Route path="/market-gold" element={<MarketGold />} />
             <Route path="/workshops" element={<Workshops />} />
             <Route path="/workshop-returns" element={<WorkshopReturns />} />
+            <Route path="/voucher-settings" element={<VoucherSettingsPage />} />
             <Route path="/shops" element={<Shops />} />
             <Route path="/receive-workshop" element={<ReceiveFromWorkshop />} />
             <Route path="/inventory" element={<Inventory />} />

@@ -81,7 +81,7 @@ export function MetricCard({
         </div>
 
         <div className="flex items-baseline gap-1.5 pt-1" dir="ltr">
-          <span className={cn("text-2xl sm:text-3xl font-black font-mono tracking-tight", valueColorMap[colorType])}>
+          <span className={cn("text-2xl sm:text-3xl font-black font-mono tracking-tight tabular-nums", valueColorMap[colorType])}>
             {value}
           </span>
           {unit && (
@@ -132,7 +132,7 @@ export function MetricCard({
       </div>
 
       <div className="flex items-baseline gap-1.5" dir="ltr">
-        <span className={cn("text-xl sm:text-2xl font-bold font-mono tracking-tight", valueColorMap[colorType])}>
+        <span className={cn("text-xl sm:text-2xl font-black font-mono tracking-tight tabular-nums", valueColorMap[colorType])}>
           {value}
         </span>
         {unit && (

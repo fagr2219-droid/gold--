@@ -20,6 +20,7 @@ export default function Returns() {
   const [returnedPiecesCount, setReturnedPiecesCount] = useState<number | null>(null);
   const [returnReason, setReturnReason] = useState('إرجاع بضاعة / تصفية رصيد');
   const [printData, setPrintData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Filter distribution transactions for selected shop
   const shopDistributions = transactions.filter(t => 
@@ -57,9 +58,12 @@ export default function Returns() {
   }) : null;
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!selectedShopId) return alert('يرجى اختيار المحل');
     if (!selectedTx || !targetItem) return alert('يرجى اختيار حركة التوزيع المراد الإرجاع منها');
     if (!actualReturnedWeight || actualReturnedWeight <= 0) return alert('يرجى إدخال وزن الإرجاع الفعلي');
+    setIsSubmitting(true);
+    try {
 
     const shop = shops.find(s => s.id === selectedShopId);
     const txId = `RET-${new Date().getFullYear()}-${Math.floor(Math.random() * 90000) + 10000}`;
@@ -110,6 +114,12 @@ export default function Returns() {
 
     alert('تم تسجيل عملية الإرجاع بنجاح وتحديث رصيد المحل والمخزون.');
     setSelectedTxId('');
+    } catch (err) {
+      console.error('خطأ في تسجيل عملية الإرجاع:', err);
+      alert('حدث خطأ أثناء تسجيل الإرجاع. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -368,11 +378,23 @@ export default function Returns() {
 
             <button 
               onClick={handleSubmit}
-              disabled={!selectedShopId || !selectedTx || !actualReturnedWeight || actualReturnedWeight <= 0}
-              className="w-full bg-amber-500 disabled:opacity-50 text-slate-950 py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/10 active:scale-[0.99] cursor-pointer"
+              disabled={!selectedShopId || !selectedTx || !actualReturnedWeight || actualReturnedWeight <= 0 || isSubmitting}
+              className="w-full bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/10 active:scale-[0.99] cursor-pointer"
             >
-              <CheckCircle className="w-5 h-5" />
-              تأكيد عملية الإرجاع
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  جاري تسجيل الإرجاع...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  تأكيد عملية الإرجاع
+                </>
+              )}
             </button>
           </div>
         </div>

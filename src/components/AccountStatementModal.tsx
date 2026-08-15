@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppStore } from '../lib/useAppStore';
 import { formatCurrency, formatWeight } from '../lib/utils';
 import { Shop, Transaction } from '../types';
 import {
   X, TrendingDown, TrendingUp, Scale, Coins,
-  ArrowDownLeft, ArrowUpRight, Calendar, FileText
+  ArrowDownLeft, ArrowUpRight, Calendar, FileText,
+  Trash2, Edit3, Check, AlertTriangle
 } from 'lucide-react';
 
 interface AccountStatementModalProps {
@@ -12,8 +13,16 @@ interface AccountStatementModalProps {
   onClose: () => void;
 }
 
+type ActionMode =
+  | { type: 'CANCEL'; tx: Transaction }
+  | { type: 'EDIT_WAGE'; tx: Transaction; currentWage: number }
+  | null;
+
 export function AccountStatementModal({ shop, onClose }: AccountStatementModalProps) {
-  const { transactions } = useAppStore();
+  const { transactions, addTransaction } = useAppStore();
+  const [actionMode, setActionMode] = useState<ActionMode>(null);
+  const [newWageAmount, setNewWageAmount] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const shopTxs = useMemo(() =>
     transactions
@@ -48,7 +57,128 @@ export function AccountStatementModal({ shop, onClose }: AccountStatementModalPr
       case 'COLLECT_FROM_SHOP': return { label: 'سند تحصيل', color: 'text-emerald-700', bg: 'bg-emerald-50', icon: <ArrowUpRight className="w-3.5 h-3.5" /> };
       case 'RETURN_FROM_SHOP': return { label: 'مرتجع من محل', color: 'text-orange-700', bg: 'bg-orange-50', icon: <TrendingUp className="w-3.5 h-3.5" /> };
       case 'REVERSE_COLLECTION': return { label: 'سند عكسي', color: 'text-red-700', bg: 'bg-red-50', icon: <X className="w-3.5 h-3.5" /> };
+      case 'CANCEL_DISTRIBUTION': return { label: 'إلغاء توزيع', color: 'text-red-700', bg: 'bg-red-50', icon: <Trash2 className="w-3.5 h-3.5" /> };
+      case 'EDIT_DISTRIBUTION_WAGE': return { label: 'تعديل أجرة', color: 'text-purple-700', bg: 'bg-purple-50', icon: <Edit3 className="w-3.5 h-3.5" /> };
       default: return { label: type, color: 'text-slate-600', bg: 'bg-slate-50', icon: <FileText className="w-3.5 h-3.5" /> };
+    }
+  };
+
+  // إلغاء عملية توزيع
+  const handleCancelDistribution = async (tx: Transaction) => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const cancelTx: Transaction = {
+        id: `CANCEL-DIST-${Date.now().toString().slice(-6)}`,
+        date: new Date().toISOString(),
+        type: 'RETURN_FROM_SHOP' as const,
+        entityId: shop.id,
+        entityName: shop.name,
+        referenceId: tx.id,
+        notes: `إلغاء عملية التوزيع ${tx.id} - اتفاق على الإلغاء`,
+        items: tx.items?.map(item => ({
+          ...item,
+          actualReturnedWeight: item.netWeight,
+          returnedPiecesCount: item.count ?? undefined,
+          returnWeightDiff: 0,
+          returnReason: 'إلغاء عملية التوزيع باتفاق',
+        })) || [],
+        cashAmount: tx.cashAmount || 0,
+      };
+      await addTransaction(cancelTx);
+      setActionMode(null);
+      alert(`✅ تم إلغاء عملية التوزيع ${tx.id} بنجاح وإعادة جميع القيود.`);
+    } catch (err) {
+      console.error('خطأ في إلغاء التوزيع:', err);
+      alert('حدث خطأ أثناء الإلغاء. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // تعديل الأجرة
+  const handleEditWage = async (tx: Transaction, newWage: number) => {
+    if (isProcessing) return;
+    if (!newWage || newWage < 0) return alert('يرجى إدخال مبلغ الأجرة الجديد');
+    const oldWage = tx.cashAmount || 0;
+    const wageDiff = newWage - oldWage;
+
+    setIsProcessing(true);
+    try {
+      // نسجل حركة تعديل تُضاف أو تُخصم من الرصيد
+      const editTx: Transaction = {
+        id: `EDIT-WAGE-${Date.now().toString().slice(-6)}`,
+        date: new Date().toISOString(),
+        type: 'COLLECT_FROM_SHOP' as const,
+        entityId: shop.id,
+        entityName: shop.name,
+        referenceId: tx.id,
+        notes: `تعديل أجرة سند التوزيع ${tx.id} - من ${oldWage.toLocaleString()} إلى ${newWage.toLocaleString()} ر.ي`,
+        collectionItems: [
+          {
+            id: crypto.randomUUID(),
+            type: 'LABOR_CASH' as const,
+            laborCashAmount: Math.abs(wageDiff),
+            purpose: 'FOR_LABOR' as const,
+          }
+        ],
+        totalLaborCash: Math.abs(wageDiff),
+        totalGoldSettlementCash: 0,
+        cashAmount: Math.abs(wageDiff),
+      };
+
+      // في حالة التخفيض: نسجل تحصيل بمبلغ الفرق (يقلل من الرصيد المستحق)
+      // في حالة الزيادة: نسجل توزيع بالفرق (يزيد الرصيد)
+      if (wageDiff < 0) {
+        // الأجرة انخفضت - نسجل تحصيل بمقدار الفرق لتقليل ما عليه
+        const collectTx: Transaction = {
+          id: `EDIT-WAGE-${Date.now().toString().slice(-6)}`,
+          date: new Date().toISOString(),
+          type: 'COLLECT_FROM_SHOP' as const,
+          entityId: shop.id,
+          entityName: shop.name,
+          referenceId: tx.id,
+          notes: `تعديل أجرة سند التوزيع ${tx.id}: تخفيض بمقدار ${Math.abs(wageDiff).toLocaleString()} ر.ي (من ${oldWage.toLocaleString()} إلى ${newWage.toLocaleString()} ر.ي)`,
+          collectionItems: [
+            {
+              id: crypto.randomUUID(),
+              type: 'LABOR_CASH' as const,
+              laborCashAmount: Math.abs(wageDiff),
+              purpose: 'FOR_LABOR' as const,
+            }
+          ],
+          totalLaborCash: Math.abs(wageDiff),
+          totalGoldSettlementCash: 0,
+          cashAmount: Math.abs(wageDiff),
+        };
+        await addTransaction(collectTx);
+      } else {
+        // الأجرة زادت - نسجل فارق توزيع
+        const additionalTx: Transaction = {
+          id: `EDIT-WAGE-${Date.now().toString().slice(-6)}`,
+          date: new Date().toISOString(),
+          type: 'DISTRIBUTE_TO_SHOP' as const,
+          entityId: shop.id,
+          entityName: shop.name,
+          referenceId: tx.id,
+          notes: `تعديل أجرة سند التوزيع ${tx.id}: زيادة بمقدار ${wageDiff.toLocaleString()} ر.ي (من ${oldWage.toLocaleString()} إلى ${newWage.toLocaleString()} ر.ي)`,
+          items: tx.items?.map(item => ({
+            ...item,
+            netWeight: 0,
+            totalShopWage: wageDiff,
+          })) || [],
+          cashAmount: wageDiff,
+        };
+        await addTransaction(additionalTx);
+      }
+
+      setActionMode(null);
+      alert(`✅ تم تعديل الأجرة بنجاح.\nالأجرة الجديدة: ${newWage.toLocaleString()} ر.ي\nالفرق: ${wageDiff > 0 ? '+' : ''}${wageDiff.toLocaleString()} ر.ي`);
+    } catch (err) {
+      console.error('خطأ في تعديل الأجرة:', err);
+      alert('حدث خطأ أثناء تعديل الأجرة. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -170,31 +300,150 @@ export function AccountStatementModal({ shop, onClose }: AccountStatementModalPr
                   const meta = typeLabel(tx.type);
                   const weight = tx.items?.reduce((s, i) => s + (i.netWeight || i.weight || 0), 0) || 0;
                   const cash = tx.cashAmount || (tx.totalLaborCash || 0) + (tx.totalGoldSettlementCash || 0);
+                  const isDistribution = tx.type === 'DISTRIBUTE_TO_SHOP';
 
                   return (
-                    <div key={tx.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-100">
-                      <div className={`w-8 h-8 rounded-lg ${meta.bg} flex items-center justify-center ${meta.color} shrink-0`}>
-                        {meta.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-bold ${meta.color}`}>{meta.label}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{tx.id}</span>
+                    <div key={tx.id} className="rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-100 overflow-hidden">
+                      <div className="flex items-center gap-3 p-3">
+                        <div className={`w-8 h-8 rounded-lg ${meta.bg} flex items-center justify-center ${meta.color} shrink-0`}>
+                          {meta.icon}
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          {new Date(tx.date).toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                          {' '}·{' '}
-                          {new Date(tx.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-bold ${meta.color}`}>{meta.label}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{tx.id}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {new Date(tx.date).toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                            {' '}·{' '}
+                            {new Date(tx.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          {tx.notes && (
+                            <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[240px]">{tx.notes}</div>
+                          )}
                         </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        {weight > 0 && (
-                          <div className="text-xs font-bold text-slate-700 font-mono tabular-nums">{formatWeight(weight)} جم</div>
+                        <div className="text-right shrink-0">
+                          {weight > 0 && (
+                            <div className="text-xs font-bold text-slate-700 font-mono tabular-nums">{formatWeight(weight)} جم</div>
+                          )}
+                          {cash > 0 && (
+                            <div className="text-xs font-bold text-[#C88918] font-mono tabular-nums">{formatCurrency(cash)} ر.ي</div>
+                          )}
+                        </div>
+                        {/* أزرار الإجراءات - فقط لعمليات التوزيع */}
+                        {isDistribution && (
+                          <div className="flex gap-1.5 shrink-0 mr-1">
+                            <button
+                              onClick={() => {
+                                setNewWageAmount(tx.cashAmount || 0);
+                                setActionMode({ type: 'EDIT_WAGE', tx, currentWage: tx.cashAmount || 0 });
+                              }}
+                              title="تعديل الأجرة"
+                              className="w-7 h-7 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setActionMode({ type: 'CANCEL', tx })}
+                              title="إلغاء العملية"
+                              className="w-7 h-7 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
-                        {cash > 0 && (
-                          <div className="text-xs font-bold text-[#C88918] font-mono tabular-nums">{formatCurrency(cash)} ر.ي</div>
-                        )}
                       </div>
+
+                      {/* Action Panel - Cancel */}
+                      {actionMode?.type === 'CANCEL' && actionMode.tx.id === tx.id && (
+                        <div className="border-t border-red-100 bg-red-50 p-3">
+                          <div className="flex items-start gap-2 mb-3">
+                            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-bold text-red-800">تأكيد إلغاء عملية التوزيع</p>
+                              <p className="text-[10px] text-red-600 mt-0.5">
+                                سيتم عكس جميع القيود المحاسبية وإعادة الأوزان للمخزون. هذه العملية لا يمكن التراجع عنها.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleCancelDistribution(tx)}
+                              disabled={isProcessing}
+                              className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              {isProcessing ? (
+                                <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                </svg>
+                              ) : <Trash2 className="w-3.5 h-3.5" />}
+                              تأكيد الإلغاء
+                            </button>
+                            <button
+                              onClick={() => setActionMode(null)}
+                              disabled={isProcessing}
+                              className="px-4 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-xs font-bold py-2 rounded-lg transition-colors cursor-pointer"
+                            >
+                              تراجع
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Panel - Edit Wage */}
+                      {actionMode?.type === 'EDIT_WAGE' && actionMode.tx.id === tx.id && (
+                        <div className="border-t border-purple-100 bg-purple-50 p-3">
+                          <div className="flex items-start gap-2 mb-3">
+                            <Edit3 className="w-4 h-4 text-purple-700 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-bold text-purple-900">تعديل الأجرة المتفق عليها</p>
+                              <p className="text-[10px] text-purple-600 mt-0.5">
+                                الأجرة الحالية: <span className="font-mono font-bold">{formatCurrency(actionMode.currentWage)} ر.ي</span>
+                                {' '}— أدخل الأجرة الجديدة المتفق عليها
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={newWageAmount || ''}
+                              onChange={e => setNewWageAmount(Number(e.target.value))}
+                              placeholder="المبلغ الجديد (ر.ي)"
+                              className="flex-1 border border-purple-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-300 bg-white text-right"
+                              dir="rtl"
+                            />
+                            <button
+                              onClick={() => handleEditWage(tx, newWageAmount)}
+                              disabled={isProcessing || !newWageAmount}
+                              className="px-3 bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                            >
+                              {isProcessing ? (
+                                <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                </svg>
+                              ) : <Check className="w-3.5 h-3.5" />}
+                              تأكيد
+                            </button>
+                            <button
+                              onClick={() => setActionMode(null)}
+                              disabled={isProcessing}
+                              className="px-3 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                            >
+                              إلغاء
+                            </button>
+                          </div>
+                          {newWageAmount > 0 && newWageAmount !== (actionMode.currentWage || 0) && (
+                            <div className={`mt-2 text-[10px] font-bold ${newWageAmount < (actionMode.currentWage || 0) ? 'text-emerald-700' : 'text-orange-700'}`}>
+                              {newWageAmount < (actionMode.currentWage || 0)
+                                ? `↓ تخفيض ${formatCurrency((actionMode.currentWage || 0) - newWageAmount)} ر.ي من رصيد المحل`
+                                : `↑ زيادة ${formatCurrency(newWageAmount - (actionMode.currentWage || 0))} ر.ي على رصيد المحل`
+                              }
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

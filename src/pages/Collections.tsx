@@ -52,6 +52,7 @@ export default function Collections() {
   const [voucherModal, setVoucherModal] = useState<{ dto: CustomerVoucherDTO; txId: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'NEW_VOUCHER' | 'HISTORY'>('NEW_VOUCHER');
   const [voucherNotes, setVoucherNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Compound Collection Items State
   const [items, setItems] = useState<CollectionItem[]>([
@@ -243,6 +244,7 @@ export default function Collections() {
 
   // Submit Compound Voucher
   const handleSubmitVoucher = async () => {
+    if (isSubmitting) return;
     if (!selectedShopId) {
       alert('يرجى اختيار المحل أولاً');
       return;
@@ -302,16 +304,24 @@ export default function Collections() {
       cashAmount: summaryMetrics.totalLaborCash + summaryMetrics.totalGoldSettlementCash,
     };
 
-    await addTransaction(tx);
+    setIsSubmitting(true);
+    try {
+      await addTransaction(tx);
 
-    // Build customer-facing voucher (no internal profit/workshop data)
-    const identity = getIdentitySnapshot();
-    const selectedShopObj = shops.find(s => s.id === selectedShopId);
-    const dto = buildCollectionVoucherDTO(tx, selectedShopObj, identity);
-    setVoucherModal({ dto, txId: tx.id });
+      // Build customer-facing voucher (no internal profit/workshop data)
+      const identity = getIdentitySnapshot();
+      const selectedShopObj = shops.find(s => s.id === selectedShopId);
+      const dto = buildCollectionVoucherDTO(tx, selectedShopObj, identity);
+      setVoucherModal({ dto, txId: tx.id });
 
-    setItems([]);
-    setVoucherNotes('');
+      setItems([]);
+      setVoucherNotes('');
+    } catch (err) {
+      console.error('خطأ في حفظ سند التحصيل:', err);
+      alert('حدث خطأ أثناء حفظ السند. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Reverse Transaction Handler (سند عكسي)
@@ -1091,16 +1101,28 @@ export default function Collections() {
                 <button
                   type="button"
                   onClick={handleSubmitVoucher}
-                  disabled={items.length === 0}
+                  disabled={items.length === 0 || isSubmitting}
                   className={cn(
                     "w-full py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.99]",
-                    items.length > 0
+                    items.length > 0 && !isSubmitting
                       ? "bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/20 cursor-pointer"
                       : "bg-slate-200 text-slate-400 cursor-not-allowed"
                   )}
                 >
-                  <CheckCircle className="w-5 h-5" />
-                  حفظ وترحيل السند
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                      </svg>
+                      جاري حفظ السند...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      حفظ وترحيل السند
+                    </>
+                  )}
                 </button>
               </div>
             </div>

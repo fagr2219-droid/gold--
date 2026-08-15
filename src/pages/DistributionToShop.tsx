@@ -36,6 +36,7 @@ export default function DistributionToShop() {
   const [selectedItems, setSelectedItems] = useState<SelectedDistributionItem[]>([]);
   const [voucherDto, setVoucherDto] = useState<CustomerVoucherDTO | null>(null);
   const [voucherTxId, setVoucherTxId] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── وضع الخصوصية ── الإخفاء دائماً افتراضي، لا يُحفظ في localStorage
   const [showInternal, setShowInternal] = useState(false);
@@ -139,11 +140,14 @@ export default function DistributionToShop() {
   });
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!selectedShopId) return alert('يرجى اختيار المحل (الوجهة)');
     if (selectedItems.length === 0) return alert('يرجى اختيار دفعات من المخزون للتوزيع');
     if (hasInvalidWeights) {
       return alert('يوجد خطأ في أوزان التوزيع: تأكد من أن الوزن المراد توزيعه أكبر من صفر ولا يتجاوز الوزن المتاح للدفعة.');
     }
+    setIsSubmitting(true);
+    try {
 
     const shop = shops.find(s => s.id === selectedShopId);
     const txId = `DIST-${new Date().getFullYear()}-${Math.floor(Math.random() * 90000) + 10000}`;
@@ -209,6 +213,12 @@ export default function DistributionToShop() {
 
     setSelectedItems([]);
     setSelectedShopId('');
+    } catch (err) {
+      console.error('خطأ في تنفيذ عملية التوزيع:', err);
+      alert('حدث خطأ أثناء تنفيذ العملية. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -762,11 +772,23 @@ export default function DistributionToShop() {
 
             <button 
               onClick={handleSubmit}
-              disabled={selectedItems.length === 0 || !selectedShopId || hasInvalidWeights}
-              className="w-full bg-amber-500 disabled:opacity-50 text-slate-950 py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/10 active:scale-[0.99] cursor-pointer"
+              disabled={selectedItems.length === 0 || !selectedShopId || hasInvalidWeights || isSubmitting}
+              className="w-full bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/10 active:scale-[0.99] cursor-pointer"
             >
-              <CheckCircle className="w-5 h-5" />
-              تأكيد وتنفيذ عملية التوزيع
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  جاري تنفيذ العملية...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  تأكيد وتنفيذ عملية التوزيع
+                </>
+              )}
             </button>
           </div>
         </div>

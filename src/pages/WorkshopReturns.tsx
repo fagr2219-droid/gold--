@@ -76,6 +76,7 @@ export default function WorkshopReturns() {
 
   // Print voucher modal
   const [printData, setPrintData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // History search/filters
   const [historySearch, setHistorySearch] = useState<string>('');
@@ -223,9 +224,12 @@ export default function WorkshopReturns() {
 
   // Submit Handler
   const handleSubmitReturn = async () => {
+    if (isSubmitting) return;
     if (!selectedWorkshopId) return alert('يرجى اختيار الورشة أولاً');
     if (!selectedBatchId || !selectedBatch) return alert('يرجى اختيار الدفعة الأصلية المراد الإرجاع منها');
     if (!certifiedWeight || certifiedWeight <= 0) return alert('يرجى إدخال الوزن المعتمد للإرجاع');
+    setIsSubmitting(true);
+    try {
     
     if (batchMetrics && certifiedWeight > batchMetrics.availWeight + 0.001) {
       return alert(`الوزن المعتمد (${certifiedWeight} جم) أكبر من الوزن المتاح فعلياً في المخزون (${batchMetrics.availWeight} جم)`);
@@ -327,6 +331,12 @@ export default function WorkshopReturns() {
     setNotes('');
     setReasonCustomText('');
     setCurrentStep(1);
+    } catch (err) {
+      console.error('خطأ في اعتماد المرتجع:', err);
+      alert('حدث خطأ أثناء اعتماد المرتجع. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Workshop Returns History
@@ -1026,11 +1036,23 @@ export default function WorkshopReturns() {
               <button
                 type="button"
                 onClick={handleSubmitReturn}
-                disabled={!selectedWorkshopId || !selectedBatchId || !certifiedWeight || certifiedWeight <= 0}
+                disabled={!selectedWorkshopId || !selectedBatchId || !certifiedWeight || certifiedWeight <= 0 || isSubmitting}
                 className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Printer className="w-4 h-4" />
-                اعتماد المرتجع وطباعة السند
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    جاري اعتماد المرتجع...
+                  </>
+                ) : (
+                  <>
+                    <Printer className="w-4 h-4" />
+                    اعتماد المرتجع وطباعة السند
+                  </>
+                )}
               </button>
             </div>
           </div>

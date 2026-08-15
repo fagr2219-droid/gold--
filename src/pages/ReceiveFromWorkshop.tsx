@@ -34,6 +34,7 @@ export default function ReceiveFromWorkshop() {
   const [workshopDocImage, setWorkshopDocImage] = useState<string>('');
   const [generalNotes, setGeneralNotes] = useState('');
   const [printData, setPrintData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Initial item prefilled with testable default
   const [items, setItems] = useState<FormItem[]>([
@@ -136,8 +137,11 @@ export default function ReceiveFromWorkshop() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!selectedWorkshopId) return alert('يرجى اختيار الورشة الموردة');
     if (items.length === 0) return alert('يرجى إضافة صنف واحد على الأقل');
+    setIsSubmitting(true);
+    try {
 
     // Build transaction items
     const txItems: TransactionItem[] = items.map(item => {
@@ -199,6 +203,12 @@ export default function ReceiveFromWorkshop() {
     setWorkshopDocNo('');
     setGeneralNotes('');
     setWorkshopDocImage('');
+    } catch (err) {
+      console.error('خطأ في اعتماد السند:', err);
+      alert('حدث خطأ أثناء اعتماد السند. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -672,10 +682,23 @@ export default function ReceiveFromWorkshop() {
           <div className="space-y-2">
             <button 
               onClick={handleSubmit}
-              className="w-full bg-amber-500 text-slate-950 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-400 transition-all shadow-md shadow-amber-500/10 active:scale-[0.99]"
+              disabled={isSubmitting}
+              className="w-full bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-400 transition-all shadow-md shadow-amber-500/10 active:scale-[0.99]"
             >
-              <CheckCircle className="w-5 h-5" />
-              اعتماد السند وتحديث المخزون
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  جاري اعتماد السند...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  اعتماد السند وتحديث المخزون
+                </>
+              )}
             </button>
             <button 
               onClick={() => {

@@ -52,12 +52,15 @@ export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPrev
         import('jspdf'),
       ]);
 
-      // Target the A4 voucher element
-      const el = document.getElementById('customer-voucher-a4');
+      let targetId = 'customer-voucher-a4';
+      if (viewType === '200x100') targetId = 'customer-voucher-200x100';
+      if (viewType === '58mm') targetId = 'customer-voucher-58mm';
+
+      const el = document.getElementById(targetId);
       if (!el) throw new Error('لم يتم العثور على عنصر السند');
 
       const canvas = await html2canvas(el, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
@@ -65,28 +68,47 @@ export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPrev
         height: el.scrollHeight,
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      
+      let orientation: 'p' | 'l' = 'p';
+      let format: string | number[] = 'a4';
+
+      if (viewType === '200x100') {
+        orientation = 'l';
+        format = [200, 100];
+      } else if (viewType === '58mm') {
+        orientation = 'p';
+        // Calculate height based on ratio for 58mm
+        const ratio = canvas.height / canvas.width;
+        format = [58, 58 * ratio];
+      }
+
       const pdf = new jsPDF({
-        orientation: 'portrait',
+        orientation: orientation,
         unit: 'mm',
-        format: 'a4',
+        format: format,
       });
 
       const pdfW = pdf.internal.pageSize.getWidth();
       const pdfH = pdf.internal.pageSize.getHeight();
-      const ratio = canvas.height / canvas.width;
-      const imgW = pdfW;
-      const imgH = pdfW * ratio;
-
-      if (imgH <= pdfH) {
-        pdf.addImage(imgData, 'PNG', 0, 0, imgW, imgH);
+      
+      // For A4 we might need multi-page, for others usually single page fits.
+      if (viewType !== 'A4') {
+         pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
       } else {
-        // Multi-page
-        let yPos = 0;
-        while (yPos < imgH) {
-          if (yPos > 0) pdf.addPage();
-          pdf.addImage(imgData, 'PNG', 0, -yPos, imgW, imgH);
-          yPos += pdfH;
+        const ratio = canvas.height / canvas.width;
+        const imgW = pdfW;
+        const imgH = pdfW * ratio;
+        if (imgH <= pdfH) {
+          pdf.addImage(imgData, 'PNG', 0, 0, imgW, imgH);
+        } else {
+          // Multi-page
+          let yPos = 0;
+          while (yPos < imgH) {
+            if (yPos > 0) pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, -yPos, imgW, imgH);
+            yPos += pdfH;
+          }
         }
       }
 
@@ -103,9 +125,9 @@ export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPrev
   }, []);
 
   const getOrGeneratePdf = useCallback(async (): Promise<Blob | null> => {
-    if (pdfBlob) return pdfBlob;
+    // Generate fresh PDF based on current viewType always
     return await generatePdf();
-  }, [pdfBlob, generatePdf]);
+  }, [generatePdf, viewType]);
 
   // Download PDF
   const handleDownload = async () => {
@@ -179,18 +201,14 @@ export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPrev
     }
   };
 
-  // Print A4
-  const handlePrintA4 = () => {
-    document.body.classList.add('printing-a4');
+  // Print Generic
+  const handlePrint = () => {
+    const printClass = viewType === 'A4' ? 'printing-a4' 
+                     : viewType === '200x100' ? 'printing-200x100' 
+                     : 'printing-58mm';
+    document.body.classList.add(printClass);
     window.print();
-    setTimeout(() => document.body.classList.remove('printing-a4'), 1000);
-  };
-
-  // Print 58mm
-  const handlePrint58 = () => {
-    document.body.classList.add('printing-58mm');
-    window.print();
-    setTimeout(() => document.body.classList.remove('printing-58mm'), 1000);
+    setTimeout(() => document.body.classList.remove(printClass), 1000);
   };
 
   return (
@@ -251,7 +269,7 @@ export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPrev
               className="bg-emerald-600 hover:bg-emerald-500"
             />
             <ActionBtn
-              onClick={viewType === 'A4' ? handlePrintA4 : handlePrint58}
+              onClick={handlePrint}
               loading={false}
               icon={<Printer className="w-4 h-4" />}
               label={viewType === 'A4' ? 'طباعة A4' : viewType === '200x100' ? 'طباعة 20×10' : 'طباعة 58mm'}

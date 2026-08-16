@@ -170,12 +170,22 @@ input, select, textarea {
     display: none !important;
   }
 
-  /* Reset body for printing */
-  body {
+  /* Force modal and all layout wrappers to be normal relative block elements so they expand fully for printing */
+  html, body {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
     background: white !important;
     color: black !important;
     margin: 0 !important;
     padding: 0 !important;
+  }
+  
+  .fixed, .absolute, .inset-0, .overflow-auto, .overflow-y-auto {
+    position: relative !important;
+    overflow: visible !important;
+    height: auto !important;
+    transform: none !important;
   }
 
   /* Hide profit / internal data always */
@@ -187,48 +197,63 @@ input, select, textarea {
   }
 
   /* A4 print mode */
-  body.printing-a4 {
-    /* Show only A4 voucher */
+  body.printing-a4 #customer-voucher-a4 {
+    display: block !important;
   }
-
+  body.printing-a4 .voucher-a4-wrapper {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  body.printing-a4 #customer-voucher-200x100,
   body.printing-a4 #customer-voucher-58mm-wrapper,
   body.printing-a4 .voucher-58mm-wrapper {
     display: none !important;
   }
 
-  body.printing-a4 #customer-voucher-a4 {
+  /* 200x100 print mode */
+  body.printing-200x100 #customer-voucher-200x100 {
     display: block !important;
   }
-
-  body.printing-a4 .voucher-a4-wrapper {
-    box-shadow: none !important;
-    border-radius: 0 !important;
-  }
-
-  @page {
-    size: A4;
-    margin: 10mm;
-  }
-
-  /* 58mm print mode */
-  body.printing-58mm #customer-voucher-a4,
-  body.printing-58mm .voucher-a4-wrapper {
+  body.printing-200x100 #customer-voucher-a4,
+  body.printing-200x100 .voucher-a4-wrapper,
+  body.printing-200x100 #customer-voucher-58mm-wrapper,
+  body.printing-200x100 .voucher-58mm-wrapper {
     display: none !important;
   }
 
+  /* 58mm print mode */
   body.printing-58mm #customer-voucher-58mm {
     display: block !important;
+  }
+  body.printing-58mm #customer-voucher-a4,
+  body.printing-58mm .voucher-a4-wrapper,
+  body.printing-58mm #customer-voucher-200x100 {
+    display: none !important;
   }
 
   /* Generic: if no class set, print the visible voucher */
   #customer-voucher-a4,
+  #customer-voucher-200x100,
   #customer-voucher-58mm {
     page-break-inside: avoid;
   }
 }
 
-/* 58mm page size - separate media to avoid invalid nesting */
+/* Page size configurations */
 @media print {
+  @page {
+    margin: 0;
+  }
+  
+  body.printing-a4 {
+    width: 210mm;
+  }
+  
+  body.printing-200x100 {
+    width: 200mm;
+    height: 100mm;
+  }
+
   body.printing-58mm {
     width: 58mm;
   }

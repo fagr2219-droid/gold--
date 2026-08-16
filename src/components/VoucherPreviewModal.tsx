@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { CustomerVoucher } from './CustomerVoucher';
 import { CustomerVoucher58mm } from './CustomerVoucher58mm';
+import { CustomerVoucher200x100 } from './CustomerVoucher200x100';
 import { CustomerVoucherDTO, VoucherIdentitySnapshot } from '../types/voucherTypes';
 import { useVoucherSettings } from '../lib/useVoucherSettings';
 import {
@@ -19,7 +20,7 @@ interface VoucherPreviewModalProps {
 export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPreviewModalProps) {
   const { archivePdf, getPdfRecord, getArchivedPdfUrl, getIdentitySnapshot } = useVoucherSettings();
 
-  const [viewType, setViewType] = useState<'A4' | '58mm'>('A4');
+  const [viewType, setViewType] = useState<'A4' | '58mm' | '200x100'>('A4');
   const [generating, setGenerating] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
@@ -204,7 +205,7 @@ export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPrev
 
           {/* View toggle */}
           <div className="flex bg-white/10 rounded-xl p-0.5 text-xs">
-            {(['A4', '58mm'] as const).map(t => (
+            {(['A4', '200x100', '58mm'] as const).map(t => (
               <button
                 key={t}
                 onClick={() => setViewType(t)}
@@ -213,7 +214,7 @@ export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPrev
                   viewType === t ? 'bg-[#E49A0A] text-[#091225]' : 'text-slate-300 hover:text-white'
                 )}
               >
-                {t}
+                {t === '200x100' ? '20×10سم' : t}
               </button>
             ))}
           </div>
@@ -253,7 +254,7 @@ export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPrev
               onClick={viewType === 'A4' ? handlePrintA4 : handlePrint58}
               loading={false}
               icon={<Printer className="w-4 h-4" />}
-              label={viewType === 'A4' ? 'طباعة A4' : 'طباعة 58mm'}
+              label={viewType === 'A4' ? 'طباعة A4' : viewType === '200x100' ? 'طباعة 20×10' : 'طباعة 58mm'}
               className="bg-slate-600 hover:bg-slate-500"
             />
             <button
@@ -289,6 +290,13 @@ export function VoucherPreviewModal({ transactionId, dto, onClose }: VoucherPrev
           <div className={cn(viewType !== 'A4' && 'hidden', 'voucher-a4-wrapper')}>
             <div className="shadow-xl rounded overflow-hidden">
               <CustomerVoucher dto={dto} id="customer-voucher-a4" />
+            </div>
+          </div>
+
+          {/* 200×100mm Voucher */}
+          <div className={cn(viewType !== '200x100' && 'hidden')}>
+            <div className="shadow-xl rounded overflow-hidden inline-block">
+              <CustomerVoucher200x100 dto={dto} id="customer-voucher-200x100" />
             </div>
           </div>
 

@@ -53,6 +53,8 @@ export default function Collections() {
   const [activeTab, setActiveTab] = useState<'NEW_VOUCHER' | 'HISTORY'>('NEW_VOUCHER');
   const [voucherNotes, setVoucherNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // تاريخ السند — افتراضي: اليوم، قابل للتعديل يدوياً
+  const [voucherDate, setVoucherDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
   // Compound Collection Items State
   const [items, setItems] = useState<CollectionItem[]>([
@@ -280,7 +282,7 @@ export default function Collections() {
 
     const tx: Transaction = {
       id: `COL-${Date.now().toString().slice(-6)}`,
-      date: new Date().toISOString(),
+      date: voucherDate ? new Date(voucherDate).toISOString() : new Date().toISOString(),
       type: 'COLLECT_FROM_SHOP',
       entityId: selectedShopId,
       entityName: selectedShop?.name,
@@ -411,7 +413,7 @@ export default function Collections() {
         <div className="space-y-6">
           {/* Shop Selector Card & Real-time Live Balances Header */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-slate-100 pb-5">
               <div className="w-full md:w-80">
                 <label className="block text-[11px] uppercase font-bold text-slate-500 mb-1.5">
                   المحل
@@ -433,6 +435,22 @@ export default function Collections() {
                 </div>
               </div>
 
+              {/* حقل تاريخ سند القبض */}
+              <div className="w-full md:w-64">
+                <label className="block text-[11px] uppercase font-bold text-slate-500 mb-1.5">
+                  📅 تاريخ سند القبض *
+                </label>
+                <input
+                  type="date"
+                  id="collection-voucher-date"
+                  className="w-full bg-slate-50 border border-amber-300 rounded-xl py-3 px-4 font-mono font-bold text-slate-800 text-sm outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 cursor-pointer"
+                  value={voucherDate}
+                  onChange={(e) => setVoucherDate(e.target.value)}
+                  max={new Date().toISOString().slice(0, 10)}
+                />
+              </div>
+            </div>
+
               {selectedShop && (
                 <div className="flex items-center gap-3 text-xs text-slate-600">
                   <div className="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl">
@@ -445,7 +463,6 @@ export default function Collections() {
                   </div>
                 </div>
               )}
-            </div>
 
             {/* Comprehensive Independent Balances Inspector Header */}
             {selectedShop && (

@@ -37,6 +37,8 @@ export default function DistributionToShop() {
   const [voucherDto, setVoucherDto] = useState<CustomerVoucherDTO | null>(null);
   const [voucherTxId, setVoucherTxId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // تاريخ السند — افتراضي: اليوم، قابل للتعديل يدوياً
+  const [voucherDate, setVoucherDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
   // ── وضع الخصوصية ── الإخفاء دائماً افتراضي، لا يُحفظ في localStorage
   const [showInternal, setShowInternal] = useState(false);
@@ -195,7 +197,7 @@ export default function DistributionToShop() {
 
     const tx = {
       id: txId,
-      date: new Date().toISOString(),
+      date: voucherDate ? new Date(voucherDate).toISOString() : new Date().toISOString(),
       type: 'DISTRIBUTE_TO_SHOP' as const,
       entityId: selectedShopId,
       entityName: shop?.name,
@@ -703,6 +705,21 @@ export default function DistributionToShop() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* حقل تاريخ السند */}
+            <div>
+              <label className="block text-xs uppercase font-bold text-slate-700 mb-1.5">
+                📅 تاريخ سند الصرف *
+              </label>
+              <input
+                type="date"
+                id="distribution-voucher-date"
+                className="w-full bg-slate-50 border border-amber-300 rounded-lg py-2.5 px-3 font-mono font-bold text-slate-800 text-sm outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 cursor-pointer"
+                value={voucherDate}
+                onChange={(e) => setVoucherDate(e.target.value)}
+                max={new Date().toISOString().slice(0, 10)}
+              />
             </div>
           </div>
 

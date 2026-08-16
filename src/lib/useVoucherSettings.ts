@@ -170,7 +170,9 @@ export function useVoucherSettings() {
     }
 
     const { data } = supabase.storage.from('brand-assets').getPublicUrl(path);
-    return data?.publicUrl ?? null;
+    const publicUrl = data?.publicUrl ?? null;
+    // Cache buster لمنع المتصفح من عرض النسخة القديمة
+    return publicUrl ? `${publicUrl}?v=${Date.now()}` : null;
   }, [user]);
 
   // Delete logo

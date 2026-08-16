@@ -5,13 +5,14 @@ import { formatCurrency, formatWeight } from '../lib/utils';
 interface CustomerVoucherProps {
   dto: CustomerVoucherDTO;
   id?: string;
+  logoDataUrl?: string | null;
 }
 
 /* ═══════════════════════════════════════════════
    CustomerVoucher — A4  (سند محاسبي رسمي — أبيض وأسود)
    نفس روح تصميم 58mm: بدون ألوان، خطوط واضحة فقط
 ═══════════════════════════════════════════════ */
-export function CustomerVoucher({ dto, id = 'customer-voucher-a4' }: CustomerVoucherProps) {
+export function CustomerVoucher({ dto, id = 'customer-voucher-a4', logoDataUrl }: CustomerVoucherProps) {
   const { identity, items = [], collectionSummary = [] } = dto;
   const isDistribution = dto.type === 'DISTRIBUTE_TO_SHOP';
 
@@ -21,7 +22,7 @@ export function CustomerVoucher({ dto, id = 'customer-voucher-a4' }: CustomerVou
   const fDateFull = dateObj.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long',   day: 'numeric' });
   const fTime     = dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
-  const logoSrc = identity.logo_url || '/default-logo.svg';
+  const logoSrc = logoDataUrl || identity.logo_url || '/default-logo.svg';
   const footerTxt = 'سند إلكتروني صادر من النظام، وطباعته أو استلامه يُعدّ اعتمادًا للعملية ولا يحتاج إلى توقيع.';
 
   /* إجماليات */
@@ -31,17 +32,15 @@ export function CustomerVoucher({ dto, id = 'customer-voucher-a4' }: CustomerVou
 
   /* ─── أنماط مشتركة ─── */
   const page: React.CSSProperties = {
-    width:       '210mm',
-    minHeight:   '297mm',
-    padding:     '10mm 12mm 8mm',
+    width:       '194mm',
+    maxWidth:    '194mm',
+    padding:     '6mm 0 5mm',
     boxSizing:   'border-box',
     fontFamily:  "'Cairo', 'Noto Kufi Arabic', Arial, sans-serif",
     direction:   'rtl',
     color:       '#111',
     background:  '#fff',
-    display:     'flex',
-    flexDirection: 'column',
-    gap:         '4mm',
+    margin:      '0 auto',
     fontSize:    '9.5pt',
   };
 
@@ -73,7 +72,7 @@ export function CustomerVoucher({ dto, id = 'customer-voucher-a4' }: CustomerVou
       {/* ════════════════════════════
           رأس السند — بدون خلفية
       ════════════════════════════ */}
-      <div style={{ textAlign: 'center', paddingBottom: '3mm' }}>
+      <div className="voucher-header" style={{ textAlign: 'center', paddingBottom: '3mm', marginBottom: '3mm' }}>
         <img
           src={logoSrc}
           alt="شعار"
@@ -299,9 +298,6 @@ export function CustomerVoucher({ dto, id = 'customer-voucher-a4' }: CustomerVou
         )}
 
       </div>
-
-      {/* spacer */}
-      <div style={{ flex: 1 }} />
 
       {/* ════════════════════════════
           تذييل السند

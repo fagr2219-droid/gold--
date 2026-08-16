@@ -5,6 +5,7 @@ import { formatCurrency, formatWeight } from '../lib/utils';
 interface CustomerVoucher200x100Props {
   dto: CustomerVoucherDTO;
   id?: string;
+  logoDataUrl?: string | null;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -12,14 +13,14 @@ interface CustomerVoucher200x100Props {
    سند مدمج أفقي مشابه للسند الورقي المرجعي
    خلفية بيضاء — خطوط داكنة فقط — بدون ألوان
 ═══════════════════════════════════════════════════ */
-export function CustomerVoucher200x100({ dto, id = 'customer-voucher-200x100' }: CustomerVoucher200x100Props) {
+export function CustomerVoucher200x100({ dto, id = 'customer-voucher-200x100', logoDataUrl }: CustomerVoucher200x100Props) {
   const { identity, items = [], collectionSummary = [] } = dto;
   const isDistribution = dto.type === 'DISTRIBUTE_TO_SHOP';
 
   const dateObj = dto.date ? new Date(dto.date) : new Date();
   const fDate   = dateObj.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
   const fTime   = dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-  const logoSrc = identity.logo_url || '/default-logo.svg';
+  const logoSrc = logoDataUrl || identity.logo_url || '/default-logo.svg';
 
   const totalPieces = items.reduce((s, i) => s + (i.count ?? 0), 0);
   const totalWeight = items.reduce((s, i) => s + i.netWeight, 0);

@@ -5,16 +5,17 @@ import { formatCurrency, formatWeight } from '../lib/utils';
 interface CustomerVoucher58mmProps {
   dto: CustomerVoucherDTO;
   id?: string;
+  logoDataUrl?: string | null;
 }
 
-export function CustomerVoucher58mm({ dto, id = 'customer-voucher-58mm' }: CustomerVoucher58mmProps) {
+export function CustomerVoucher58mm({ dto, id = 'customer-voucher-58mm', logoDataUrl }: CustomerVoucher58mmProps) {
   const { identity, items = [], collectionSummary = [] } = dto;
   const isDistribution = dto.type === 'DISTRIBUTE_TO_SHOP';
 
   const dateObj    = dto.date ? new Date(dto.date) : new Date();
   const fDate      = dateObj.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
   const fTime      = dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-  const logoSrc    = identity.logo_url || '/default-logo.svg';
+  const logoSrc    = logoDataUrl || identity.logo_url || '/default-logo.svg';
   const footerTxt  = identity.footer_note || 'سند إلكتروني — استلامه اعتماد للعملية';
 
   /* إجماليات */

@@ -11,126 +11,175 @@ export function CustomerVoucher58mm({ dto, id = 'customer-voucher-58mm' }: Custo
   const { identity, items = [], collectionSummary = [] } = dto;
   const isDistribution = dto.type === 'DISTRIBUTE_TO_SHOP';
 
-  const formattedDate = dto.date
-    ? new Date(dto.date).toLocaleDateString('ar-EG', {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-      })
-    : '';
+  const dateObj    = dto.date ? new Date(dto.date) : new Date();
+  const fDate      = dateObj.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const fTime      = dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+  const logoSrc    = identity.logo_url || '/default-logo.svg';
+  const footerTxt  = identity.footer_note || 'سند إلكتروني — استلامه اعتماد للعملية';
 
-  const footerNote = identity.footer_note || 'سند إلكتروني لا يحتاج توقيع';
-  const logoSrc = identity.logo_url || '/default-logo.svg';
+  /* إجماليات */
+  const totalPieces    = items.reduce((s, i) => s + (i.count ?? 0), 0);
+  const totalNetWeight = items.reduce((s, i) => s + i.netWeight, 0);
+  const totalWages     = items.reduce((s, i) => s + i.totalShopWage, 0);
 
-  const dotLine = '─'.repeat(28);
+  /* الأنماط */
+  const page: React.CSSProperties = {
+    width:      '54mm',
+    fontFamily: "'Tajawal', 'Cairo', 'Arial', sans-serif",
+    fontSize:   '8.5pt',
+    lineHeight: 1.45,
+    direction:  'rtl',
+    color:      '#000',
+    background: '#fff',
+    padding:    '2mm',
+    boxSizing:  'border-box',
+  };
+
+  const dashed: React.CSSProperties = {
+    borderTop:  '1px dashed #444',
+    margin:     '2mm 0',
+  };
+
+  const dotted: React.CSSProperties = {
+    borderTop:  '1px dotted #888',
+    margin:     '1.5mm 0',
+  };
 
   return (
-    <div
-      id={id}
-      dir="rtl"
-      style={{
-        width: '54mm',
-        fontFamily: "'Tajawal', 'Arial', sans-serif",
-        fontSize: '9.5pt',
-        lineHeight: 1.4,
-        color: '#000',
-        background: '#fff',
-        padding: '2mm',
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* Logo + Brand */}
-      <div style={{ textAlign: 'center', borderBottom: '1px dashed #333', paddingBottom: '2mm', marginBottom: '2mm' }}>
+    <div id={id} dir="rtl" style={page}>
+
+      {/* ── رأس السند ── */}
+      <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
         <img
           src={logoSrc}
           alt="شعار"
-          style={{ width: '12mm', height: '12mm', objectFit: 'contain', margin: '0 auto 1mm' }}
-          onError={e => { (e.target as HTMLImageElement).src = '/default-logo.svg'; }}
+          style={{ width: '10mm', height: '10mm', objectFit: 'contain', display: 'block', margin: '0 auto 1mm' }}
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
-        <div style={{ fontWeight: 900, fontSize: '10pt' }}>{identity.brand_name}</div>
-        <div style={{ fontSize: '8pt', color: '#444' }}>{identity.distributor_name}</div>
+        <div style={{ fontWeight: 900, fontSize: '9.5pt' }}>{identity.brand_name}</div>
+        {identity.activity_description && (
+          <div style={{ fontSize: '7.5pt', color: '#444' }}>{identity.activity_description}</div>
+        )}
+        <div style={{ fontSize: '7.5pt' }}>{identity.distributor_name}</div>
         {identity.primary_phone && (
-          <div style={{ fontSize: '8pt' }}>📞 {identity.primary_phone}</div>
+          <div style={{ fontSize: '7.5pt' }}>☎ {identity.primary_phone}</div>
         )}
       </div>
 
-      {/* Voucher type & number */}
-      <div style={{ textAlign: 'center', fontWeight: 900, fontSize: '10pt', marginBottom: '1.5mm' }}>
-        {isDistribution ? 'سند توزيع' : 'سند قبض'}
+      <div style={dashed} />
+
+      {/* ── عنوان السند ── */}
+      <div style={{ textAlign: 'center', fontWeight: 900, fontSize: '9.5pt', marginBottom: '1.5mm' }}>
+        {isDistribution ? 'سند توزيع بضاعة' : 'سند قبض وتحصيل'}
       </div>
 
-      {/* Meta */}
-      <div style={{ fontSize: '8.5pt', marginBottom: '2mm' }}>
-        <Row label="رقم السند" value={dto.voucherNumber} mono />
-        <Row label="التاريخ" value={formattedDate} />
-        <Row label="العميل" value={dto.customerName} bold />
-      </div>
+      {/* ── بيانات السند ── */}
+      <ThRow label="رقم السند" value={dto.voucherNumber} mono />
+      <ThRow label="التاريخ"   value={`${fDate}  ${fTime}`} />
+      <ThRow label="العميل"    value={dto.customerName} bold />
+      {dto.customerPhone && <ThRow label="الهاتف" value={dto.customerPhone} />}
 
-      <div style={{ borderTop: '1px dashed #333', marginBottom: '2mm' }} />
+      <div style={dashed} />
 
-      {/* Distribution Items */}
+      {/* ── سند التوزيع — كل صنف على شكل مجموعة أسطر ── */}
       {isDistribution && items.map((item, i) => (
-        <div key={i} style={{ marginBottom: '2mm', fontSize: '8.5pt' }}>
-          <div style={{ fontWeight: 700 }}>{item.category} ({item.modelCode}) — عيار {item.karat}</div>
-          <Row label="الوزن الصافي" value={`${formatWeight(item.netWeight)} جم`} mono />
-          {item.count != null && <Row label="القطع" value={`${item.count}`} />}
-          <Row label="أجرة الجرام" value={`${formatCurrency(item.shopWagePerGram)} ر.ي`} mono />
-          <Row label="إجمالي الأجور" value={`${formatCurrency(item.totalShopWage)} ر.ي`} bold mono />
-          {i < items.length - 1 && <div style={{ borderTop: '1px dotted #aaa', margin: '1.5mm 0' }} />}
+        <div key={i} style={{ marginBottom: '2mm', fontSize: '8pt' }}>
+
+          {/* اسم الصنف والموديل */}
+          <div style={{ fontWeight: 700, marginBottom: '0.5mm' }}>
+            {item.category}
+            {item.modelCode ? `  (${item.modelCode})` : ''}
+          </div>
+
+          {/* تفاصيل الصنف */}
+          <ThRow label="العيار"        value={`${item.karat}`} />
+          {item.count != null && (
+            <ThRow label="عدد القطع"   value={`${item.count}`} />
+          )}
+          <ThRow label="الوزن الصافي"  value={`${formatWeight(item.netWeight)} جم`} mono />
+          <ThRow label="أجرة الجرام"   value={`${formatCurrency(item.shopWagePerGram)} ر.ي`} mono />
+          <ThRow label="إجمالي الأجور" value={`${formatCurrency(item.totalShopWage)} ر.ي`} mono bold />
+
+          {i < items.length - 1 && <div style={dotted} />}
         </div>
       ))}
 
-      {/* Collection Items */}
+      {/* ── سند القبض ── */}
       {!isDistribution && collectionSummary.map((item, i) => (
-        <div key={i} style={{ marginBottom: '1.5mm', fontSize: '8.5pt' }}>
-          {item.laborCashAmount != null && (
-            <Row label={`تحصيل (${item.paymentMethod})`} value={`${formatCurrency(item.laborCashAmount)} ر.ي`} bold mono />
+        <div key={i} style={{ marginBottom: '1.5mm', fontSize: '8pt' }}>
+          {item.laborCashAmount      != null && (
+            <ThRow label={`تحصيل أجور (${item.paymentMethod})`}
+              value={`${formatCurrency(item.laborCashAmount)} ر.ي`} bold mono />
           )}
-          {item.scrapGoldWeight != null && (
-            <Row label={`كسر عيار ${item.scrapGoldKarat}`} value={`${formatWeight(item.scrapGoldWeight)} جم`} bold mono />
+          {item.scrapGoldWeight      != null && (
+            <ThRow label={`ذهب كسر (عيار ${item.scrapGoldKarat})`}
+              value={`${formatWeight(item.scrapGoldWeight)} جم`} bold mono />
+          )}
+          {item.goldSettlementWeight != null && (
+            <ThRow label="تسوية ذهب نقدًا"
+              value={`${formatWeight(item.goldSettlementWeight)} جم`} bold mono />
           )}
         </div>
       ))}
 
-      <div style={{ borderTop: '1px dashed #333', marginBottom: '2mm' }} />
+      <div style={dashed} />
 
-      {/* Summary */}
+      {/* ── إجماليات (توزيع) ── */}
       {isDistribution && (
         <>
-          {dto.totalWeight != null && <Row label="إجمالي الوزن" value={`${formatWeight(dto.totalWeight)} جم`} bold />}
-          {dto.totalPieces != null && dto.totalPieces > 0 && <Row label="إجمالي القطع" value={`${dto.totalPieces} قطعة`} />}
-          {dto.totalShopWages != null && <Row label="إجمالي الأجور" value={`${formatCurrency(dto.totalShopWages)} ر.ي`} bold />}
-          <div style={{ borderTop: '1px dashed #333', margin: '1.5mm 0' }} />
+          {totalPieces > 0 && (
+            <ThRow label="إجمالي القطع"   value={`${totalPieces}`} bold />
+          )}
+          <ThRow label="إجمالي الوزن الصافي" value={`${formatWeight(totalNetWeight)} جم`} bold mono />
+          <ThRow label="إجمالي الأجور"        value={`${formatCurrency(totalWages)} ر.ي`}  bold mono />
+          <div style={dotted} />
         </>
       )}
 
-      {/* Balances */}
-      {dto.previousLaborBalance != null && (
-        <>
-          <Row label="رصيد أجور سابق" value={`${formatCurrency(dto.previousLaborBalance)} ر.ي`} />
-          <Row label="رصيد أجور جديد" value={`${formatCurrency(dto.newLaborBalance ?? 0)} ر.ي`} bold />
-        </>
+      {/* ── أرصدة الأجور ── */}
+      <ThRow label="رصيد الأجور السابق" value={`${formatCurrency(dto.previousLaborBalance ?? 0)} ر.ي`} />
+      {isDistribution && (
+        <ThRow label="قيمة السند"        value={`+ ${formatCurrency(dto.totalShopWages ?? 0)} ر.ي`} />
       )}
+      <ThRow label="الرصيد الجديد للأجور" value={`${formatCurrency(dto.newLaborBalance ?? 0)} ر.ي`} bold mono />
+
+      {/* ── أرصدة الذهب ── */}
       {dto.previousGoldBalance != null && (
         <>
-          <Row label={`ذهب سابق (${dto.previousGoldKarat})`} value={`${formatWeight(dto.previousGoldBalance)} جم`} />
-          <Row label={`ذهب جديد (${dto.previousGoldKarat})`} value={`${formatWeight(dto.newGoldBalance ?? 0)} جم`} bold />
+          <div style={dotted} />
+          <ThRow label={`رصيد ذهب سابق (${dto.previousGoldKarat})`}
+            value={`${formatWeight(dto.previousGoldBalance)} جم`} />
+          {isDistribution && (
+            <ThRow label="الموزع في السند"
+              value={`+ ${formatWeight(dto.totalWeight ?? 0)} جم`} />
+          )}
+          <ThRow label="رصيد الذهب الجديد"
+            value={`${formatWeight(dto.newGoldBalance ?? 0)} جم`} bold mono />
         </>
       )}
 
-      {/* Footer */}
-      <div style={{ borderTop: '1px dashed #333', marginTop: '2mm', paddingTop: '1.5mm', textAlign: 'center', fontSize: '7.5pt', color: '#555' }}>
-        {footerNote}
+      {/* ── تذييل ── */}
+      <div style={{ ...dashed }} />
+      <div style={{ textAlign: 'center', fontSize: '7pt', color: '#555', lineHeight: 1.4 }}>
+        {footerTxt}
       </div>
     </div>
   );
 }
 
-function Row({ label, value, bold, mono }: { label: string; value: string; bold?: boolean; mono?: boolean }) {
+/* ── مكوّن صف ── */
+function ThRow({ label, value, bold, mono }: {
+  label: string; value: string; bold?: boolean; mono?: boolean;
+}) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5mm' }}>
-      <span style={{ color: '#555' }}>{label}:</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5mm' }}>
+      <span style={{ color: '#444', fontSize: '8pt', flexShrink: 0 }}>{label}:</span>
       <span style={{
-        fontWeight: bold ? 700 : undefined,
-        fontFamily: mono ? 'monospace' : undefined,
+        fontWeight:        bold ? 700 : undefined,
+        fontFamily:        mono ? 'monospace' : undefined,
+        fontVariantNumeric:'tabular-nums',
+        textAlign:         'left',
+        paddingRight:      '1mm',
       }}>
         {value}
       </span>

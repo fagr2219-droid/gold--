@@ -1,13 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useAppStore } from '../lib/useAppStore';
 import { formatCurrency, formatWeight, cn } from '../lib/utils';
 import {
   Scale, CheckCircle, AlertCircle, Clock, FileText,
   Plus, Trash2, ChevronDown, ChevronUp, Info, AlertTriangle,
-  ArrowLeftRight
+  ArrowLeftRight, ShieldCheck, ShieldAlert, Wrench
 } from 'lucide-react';
 import { Transaction, SettlementRow, SettlementData, Karat } from '../types';
 import { SensitiveAmount } from '../components/SensitiveAmount';
+import { repository } from '../lib/storage';
 
 interface SettlementRowState {
   batchId: string;
@@ -17,7 +18,7 @@ interface SettlementRowState {
 }
 
 export default function QuickDistSettlement() {
-  const { transactions, inventory, addTransaction } = useAppStore();
+  const { transactions, inventory, addTransaction, refreshData } = useAppStore();
   const [activeTxId, setActiveTxId] = useState<string | null>(null);
   const [rows, setRows] = useState<SettlementRowState[]>([]);
   const [tolerance, setTolerance] = useState(0.030);
@@ -25,6 +26,64 @@ export default function QuickDistSettlement() {
   const [scaleDiffWeight, setScaleDiffWeight] = useState<number | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showInternal, setShowInternal] = useState(false);
+  const [repairing, setRepairing] = useState<string | null>(null);
+
+  // ── فحص سلامة قيد العميل (هل يوجد items[]?) ──
+  const hasLedgerEntry = useCallback((tx: Transaction): boolean => {
+    return !!(tx.items && tx.items.length > 0);
+  }, []);
+
+  // ── إصلاح قيد العميل المفقود — Idempotent ──
+  const repairLedgerEntry = useCallback(async (tx: Transaction) => {
+    // فحص Idempotent: إذا items[] موجود، لا شيء يتغير
+    if (hasLedgerEntry(tx)) {
+      alert('✅ قيد العميل سليم — لا حاجة للإصلاح.');
+      return;
+    }
+    const qd = tx.quickDistData;
+    if (!qd) return;
+
+    setRepairing(tx.id);
+    try {
+      // إعادة قراءة العملية من قاعدة البيانات للتأكد
+      const freshTx = await repository.getById('transactions', tx.id);
+      if (!freshTx) {
+        alert('⚠ لم يتم العثور على العملية في قاعدة البيانات.');
+        return;
+      }
+      // فحص Idempotent مرة ثانية بعد القراءة
+      if (freshTx.items && freshTx.items.length > 0) {
+        alert('✅ قيد العميل تم إصلاحه مسبقًا — لا حاجة لتكرار الإصلاح.');
+        await refreshData();
+        return;
+      }
+
+      // إنشاء items[] من quickDistData — بدون أي تغيير في الأرصدة
+      freshTx.items = [{
+        inventoryItemId: '__quick_dist__',
+        category: qd.category,
+        modelCode: '',
+        karat: qd.karat,
+        netWeight: qd.totalNetWeight,
+        grossWeight: qd.totalNetWeight,
+        count: qd.pieceCount ?? null,
+        totalShopWage: qd.totalShopWage,
+        finalShopWagePerGram: qd.shopWagePerGram,
+        sourceType: 'quick_distribution',
+        sourceId: tx.id,
+      } as any];
+
+      // حفظ مباشر — بدون addTransaction لتجنب تكرار القيود المحاسبية
+      await repository.save('transactions', freshTx);
+      await refreshData();
+      alert('✅ تم إصلاح قيد العميل بنجاح. العملية ستظهر الآن في صفحة المرتجع وكشف الحساب.');
+    } catch (err) {
+      console.error('خطأ في إصلاح قيد العميل:', err);
+      alert('حدث خطأ أثناء الإصلاح.');
+    } finally {
+      setRepairing(null);
+    }
+  }, [hasLedgerEntry, refreshData]);
 
   // Filter pending quick distributions
   const pendingTxs = useMemo(() =>
@@ -526,7 +585,21 @@ export default function QuickDistSettlement() {
                           <span className="font-mono font-bold text-slate-800">{formatCurrency(qd.shopWagePerGram)} ر.ي</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* مؤشر سلامة القيد */}
+                        {hasLedgerEntry(tx) ? (
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3" /> ✓ قيد سليم
+                          </span>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); repairLedgerEntry(tx); }}
+                            disabled={repairing === tx.id}
+                            className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-red-50 text-red-700 border-red-200 flex items-center gap-1 hover:bg-red-100 cursor-pointer"
+                          >
+                            {repairing === tx.id ? '...' : <><ShieldAlert className="w-3 h-3" /> إصلاح القيد</>}
+                          </button>
+                        )}
                         <span className={cn(
                           'text-[10px] font-bold px-2 py-1 rounded-lg border',
                           days > 7
@@ -595,9 +668,29 @@ export default function QuickDistSettlement() {
                           />
                         </div>
                       </div>
-                      <span className="text-emerald-600 text-[10px] font-bold flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> تمت التسوية
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* مؤشر سلامة القيد */}
+                        {hasLedgerEntry(tx) ? (
+                          <span className="text-emerald-600 text-[10px] font-bold flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3" /> تمت التسوية
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => repairLedgerEntry(tx)}
+                            disabled={repairing === tx.id}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg border bg-red-50 text-red-700 border-red-200 flex items-center gap-1 hover:bg-red-100 cursor-pointer"
+                          >
+                            {repairing === tx.id ? (
+                              <span className="flex items-center gap-1">
+                                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                جاري الإصلاح...
+                              </span>
+                            ) : (
+                              <><Wrench className="w-3 h-3" /> قيد مفقود — إصلاح</>  
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

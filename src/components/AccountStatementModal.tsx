@@ -5,7 +5,7 @@ import { Shop, Transaction } from '../types';
 import {
   X, TrendingDown, TrendingUp, Scale, Coins,
   ArrowDownLeft, ArrowUpRight, Calendar, FileText,
-  Trash2, Edit3, Check, AlertTriangle
+  Trash2, Edit3, Check, AlertTriangle, Zap
 } from 'lucide-react';
 
 interface AccountStatementModalProps {
@@ -31,10 +31,10 @@ export function AccountStatementModal({ shop, onClose }: AccountStatementModalPr
     [transactions, shop.id]
   );
 
-  // ما أعطيته له (توزيع بضاعة)
-  const distributions = shopTxs.filter(t => t.type === 'DISTRIBUTE_TO_SHOP');
+  // ما أعطيته له (توزيع بضاعة — تفصيلي وسريع)
+  const distributions = shopTxs.filter(t => t.type === 'DISTRIBUTE_TO_SHOP' || t.type === 'QUICK_DISTRIBUTE');
   const totalDistributedWeight = distributions.reduce((s, t) =>
-    s + (t.items?.reduce((si, i) => si + (i.netWeight || i.weight || 0), 0) || 0), 0);
+    s + (t.items?.reduce((si, i) => si + (i.netWeight || (i as any).weight || 0), 0) || 0), 0);
   const totalDistributedWages = distributions.reduce((s, t) =>
     s + (t.cashAmount || t.items?.reduce((si, i) => si + (i.totalShopWage || 0), 0) || 0), 0);
 
@@ -54,6 +54,8 @@ export function AccountStatementModal({ shop, onClose }: AccountStatementModalPr
   const typeLabel = (type: string) => {
     switch (type) {
       case 'DISTRIBUTE_TO_SHOP': return { label: 'توزيع بضاعة', color: 'text-blue-700', bg: 'bg-blue-50', icon: <ArrowDownLeft className="w-3.5 h-3.5" /> };
+      case 'QUICK_DISTRIBUTE': return { label: 'توزيع سريع', color: 'text-amber-700', bg: 'bg-amber-50', icon: <ArrowDownLeft className="w-3.5 h-3.5" /> };
+      case 'SETTLE_QUICK_DISTRIBUTION': return { label: 'تسوية توزيع سريع', color: 'text-indigo-700', bg: 'bg-indigo-50', icon: <Scale className="w-3.5 h-3.5" /> };
       case 'COLLECT_FROM_SHOP': return { label: 'سند تحصيل', color: 'text-emerald-700', bg: 'bg-emerald-50', icon: <ArrowUpRight className="w-3.5 h-3.5" /> };
       case 'RETURN_FROM_SHOP': return { label: 'مرتجع من محل', color: 'text-orange-700', bg: 'bg-orange-50', icon: <TrendingUp className="w-3.5 h-3.5" /> };
       case 'REVERSE_COLLECTION': return { label: 'سند عكسي', color: 'text-red-700', bg: 'bg-red-50', icon: <X className="w-3.5 h-3.5" /> };

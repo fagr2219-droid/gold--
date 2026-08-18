@@ -22,9 +22,9 @@ export default function Returns() {
   const [printData, setPrintData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Filter distribution transactions for selected shop
+  // Filter distribution transactions for selected shop (including quick distributions)
   const shopDistributions = transactions.filter(t => 
-    t.type === 'DISTRIBUTE_TO_SHOP' && 
+    (t.type === 'DISTRIBUTE_TO_SHOP' || t.type === 'QUICK_DISTRIBUTE') && 
     t.entityId === selectedShopId &&
     t.items && t.items.length > 0
   );

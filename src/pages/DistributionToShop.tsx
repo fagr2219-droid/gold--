@@ -146,6 +146,20 @@ export default function DistributionToShop() {
         entityName: shop?.name,
         cashAmount: qTotalWage,
         quickDistData,
+        // items[] قياسي للتوافق مع صفحات المرتجع وكشف الحساب
+        items: [{
+          inventoryItemId: '__quick_dist__',
+          category: qCategory.trim(),
+          modelCode: '',
+          karat: qKarat,
+          netWeight: qWeightNum,
+          grossWeight: qWeightNum,
+          count: typeof qPieceCount === 'number' ? qPieceCount : null,
+          totalShopWage: qTotalWage,
+          finalShopWagePerGram: qWageNum,
+          sourceType: 'quick_distribution',
+          sourceId: txId,
+        } as any],
       };
 
       await addTransaction(tx);

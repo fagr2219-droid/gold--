@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../lib/useAppStore';
 import { calculateDistributionMetrics } from '../lib/accounting';
 import { formatCurrency, formatWeight, formatApprox, cn } from '../lib/utils';
 import { 
   Package, Truck, Store, CheckCircle, Trash2, Tag, 
   TrendingUp, DollarSign, Calculator, Info, ArrowLeftRight,
-  Layers, AlertCircle, Sparkles, Hash, Scale, Eye, EyeOff
+  Layers, AlertCircle, Sparkles, Hash, Scale, Eye, EyeOff,
+  Zap, FileText, Clock, MessageSquare
 } from 'lucide-react';
-import { InventoryItem, PricingMode, ShopWageMethod, TransactionItem } from '../types';
+import { InventoryItem, PricingMode, ShopWageMethod, TransactionItem, Karat, QuickDistributionData } from '../types';
 import { VoucherPreviewModal } from '../components/VoucherPreviewModal';
 import { useVoucherSettings } from '../lib/useVoucherSettings';
-import { buildDistributionVoucherDTO, CustomerVoucherDTO } from '../types/voucherTypes';
+import { buildDistributionVoucherDTO, buildQuickDistributionVoucherDTO, CustomerVoucherDTO } from '../types/voucherTypes';
 import { SensitiveAmount } from '../components/SensitiveAmount';
 
 interface SelectedDistributionItem {
@@ -43,6 +44,27 @@ export default function DistributionToShop() {
   // ── وضع الخصوصية ── الإخفاء دائماً افتراضي، لا يُحفظ في localStorage
   const [showInternal, setShowInternal] = useState(false);
 
+  // ── وضع التوزيع: تفصيلي أو سريع ──
+  const [distributionMode, setDistributionMode] = useState<'detailed' | 'quick'>('detailed');
+
+  // ── حالة نموذج التوزيع السريع ──
+  const DRAFT_KEY = 'gold_quick_dist_draft';
+  const [qShopId, setQShopId] = useState('');
+  const [qDate, setQDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [qTime, setQTime] = useState<string>(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  });
+  const [qCategory, setQCategory] = useState('');
+  const [qKarat, setQKarat] = useState<Karat>(21);
+  const [qWeight, setQWeight] = useState<number | ''>('');
+  const [qPieceCount, setQPieceCount] = useState<number | ''>('');
+  const [qWagePerGram, setQWagePerGram] = useState<number | ''>('');
+  const [qPossibleBatches, setQPossibleBatches] = useState<string[]>([]);
+  const [qNote, setQNote] = useState('');
+  const [qSubmitting, setQSubmitting] = useState(false);
+  const weightInputRef = useRef<HTMLInputElement>(null);
+
   // إخفاء تلقائي عند مغادرة التبويب أو الصفحة
   useEffect(() => {
     const handleVisibility = () => {
@@ -54,6 +76,101 @@ export default function DistributionToShop() {
       setShowInternal(false); // إخفاء عند unmount (مغادرة الصفحة)
     };
   }, []);
+
+  // ── حفظ مسودة التوزيع السريع تلقائيًا ──
+  useEffect(() => {
+    if (distributionMode !== 'quick') return;
+    const draft = { qShopId, qDate, qTime, qCategory, qKarat, qWeight, qPieceCount, qWagePerGram, qPossibleBatches, qNote };
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
+  }, [distributionMode, qShopId, qDate, qTime, qCategory, qKarat, qWeight, qPieceCount, qWagePerGram, qPossibleBatches, qNote]);
+
+  // ── استعادة المسودة عند الفتح ──
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.qShopId) setQShopId(d.qShopId);
+        if (d.qCategory) setQCategory(d.qCategory);
+        if (d.qKarat) setQKarat(d.qKarat);
+        if (d.qWeight) setQWeight(d.qWeight);
+        if (d.qPieceCount) setQPieceCount(d.qPieceCount);
+        if (d.qWagePerGram) setQWagePerGram(d.qWagePerGram);
+        if (d.qNote) setQNote(d.qNote);
+        if (d.qPossibleBatches) setQPossibleBatches(d.qPossibleBatches);
+      }
+    } catch {}
+  }, []);
+
+  // ── حسابات التوزيع السريع ──
+  const qWeightNum = typeof qWeight === 'number' ? qWeight : 0;
+  const qWageNum = typeof qWagePerGram === 'number' ? qWagePerGram : 0;
+  const qTotalWage = Number((qWeightNum * qWageNum).toFixed(2));
+
+  const handleQuickSubmit = async () => {
+    if (qSubmitting) return;
+    if (!qShopId) return alert('يرجى اختيار العميل');
+    if (!qCategory.trim()) return alert('يرجى إدخال اسم الصنف');
+    if (!qWeightNum || qWeightNum <= 0) return alert('يرجى إدخال الوزن الصافي');
+    if (!qWageNum || qWageNum <= 0) return alert('يرجى إدخال أجرة الجرام');
+
+    setQSubmitting(true);
+    try {
+      const shop = shops.find(s => s.id === qShopId);
+      const txId = `QD-${new Date().getFullYear()}-${Math.floor(Math.random() * 90000) + 10000}`;
+
+      const quickDistData: QuickDistributionData = {
+        category: qCategory.trim(),
+        karat: qKarat,
+        totalNetWeight: qWeightNum,
+        pieceCount: typeof qPieceCount === 'number' ? qPieceCount : null,
+        shopWagePerGram: qWageNum,
+        totalShopWage: qTotalWage,
+        possibleBatchIds: qPossibleBatches.length > 0 ? qPossibleBatches : undefined,
+        internalNote: qNote.trim() || undefined,
+        settlementStatus: 'PENDING',
+        pendingWeight: qWeightNum,
+      };
+
+      const dateStr = qDate && qTime
+        ? new Date(`${qDate}T${qTime}`).toISOString()
+        : qDate
+          ? new Date(qDate).toISOString()
+          : new Date().toISOString();
+
+      const tx = {
+        id: txId,
+        date: dateStr,
+        type: 'QUICK_DISTRIBUTE' as const,
+        entityId: qShopId,
+        entityName: shop?.name,
+        cashAmount: qTotalWage,
+        quickDistData,
+      };
+
+      await addTransaction(tx);
+
+      // Build customer-facing voucher
+      const identity = getIdentitySnapshot();
+      const dto = buildQuickDistributionVoucherDTO(tx, shop, identity);
+      setVoucherDto(dto);
+      setVoucherTxId(txId);
+
+      // Reset form
+      setQCategory('');
+      setQWeight('');
+      setQPieceCount('');
+      setQWagePerGram('');
+      setQPossibleBatches([]);
+      setQNote('');
+      localStorage.removeItem(DRAFT_KEY);
+    } catch (err) {
+      console.error('خطأ في التوزيع السريع:', err);
+      alert('حدث خطأ أثناء تنفيذ العملية. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setQSubmitting(false);
+    }
+  };
 
   // Available inventory batches (only items with available weight > 0)
   const availableInventory = inventory.filter(item => {
@@ -241,11 +358,320 @@ export default function DistributionToShop() {
             توزيع بضاعة للمحلات — سندات صرف
           </h2>
           <p className="text-slate-500 text-sm mt-1">
-            إمكانية توزيع جزء من الدفعة واحتساب تكلفة الورشة والأرباح بدقة النسبة والتناسب مع بقاء الرصيد المتبقي في المخزون.
+            {distributionMode === 'detailed'
+              ? 'إمكانية توزيع جزء من الدفعة واحتساب تكلفة الورشة والأرباح بدقة النسبة والتناسب مع بقاء الرصيد المتبقي في المخزون.'
+              : 'إصدار سند فوري للعميل مع تأجيل توزيع الوزن على الدفعات — للاستخدام السريع داخل المحل.'}
           </p>
         </div>
       </div>
 
+      {/* ── مبدّل وضع التوزيع ── */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-1.5 flex gap-1.5">
+        <button
+          onClick={() => setDistributionMode('detailed')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all cursor-pointer',
+            distributionMode === 'detailed'
+              ? 'bg-[#0F1B33] text-white shadow-md'
+              : 'text-slate-500 hover:bg-slate-50'
+          )}
+        >
+          <Calculator className="w-4 h-4" />
+          توزيع تفصيلي
+        </button>
+        <button
+          onClick={() => setDistributionMode('quick')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-bold transition-all cursor-pointer',
+            distributionMode === 'quick'
+              ? 'bg-gradient-to-l from-[#0F1B33] to-[#1a2e4a] text-[#E49A0A] shadow-md'
+              : 'text-slate-500 hover:bg-slate-50'
+          )}
+        >
+          <Zap className="w-4 h-4" />
+          توزيع سريع وتسوية لاحقًا
+        </button>
+      </div>
+
+      {/* ══════════════════════════════════════ */}
+      {/*  نموذج التوزيع السريع               */}
+      {/* ══════════════════════════════════════ */}
+      {distributionMode === 'quick' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* العمود الأيسر: النموذج */}
+            <div className="lg:col-span-2 space-y-5">
+              {/* بطاقة بيانات العملية */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#E49A0A]" />
+                  بيانات التوزيع السريع
+                </h3>
+
+                {/* العميل */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    العميل (المحل المستلم) *
+                  </label>
+                  <div className="relative">
+                    <Store className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-3 pr-9 pl-3 font-bold text-slate-800 text-sm outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                      value={qShopId}
+                      onChange={e => setQShopId(e.target.value)}
+                    >
+                      <option value="">-- اختر العميل --</option>
+                      {shops.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* التاريخ والوقت */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">📅 التاريخ *</label>
+                    <input
+                      type="date"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-3 px-3 font-mono font-bold text-slate-800 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                      value={qDate}
+                      onChange={e => setQDate(e.target.value)}
+                      max={new Date().toISOString().slice(0, 10)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">🕐 الوقت</label>
+                    <input
+                      type="time"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-3 px-3 font-mono font-bold text-slate-800 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                      value={qTime}
+                      onChange={e => setQTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* الصنف والعيار */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      اسم الصنف العام *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="مثال: محابس متنوعة"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-3 px-3 font-bold text-slate-800 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                      value={qCategory}
+                      onChange={e => setQCategory(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">العيار *</label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-3 px-3 font-bold text-slate-800 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                      value={qKarat}
+                      onChange={e => setQKarat(Number(e.target.value) as Karat)}
+                    >
+                      <option value={18}>عيار 18</option>
+                      <option value={21}>عيار 21</option>
+                      <option value={22}>عيار 22</option>
+                      <option value={24}>عيار 24</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* الوزن وعدد القطع */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+                    <label className="block text-xs font-bold text-amber-950 mb-1.5 flex items-center gap-1">
+                      <Scale className="w-3.5 h-3.5 text-amber-600" />
+                      الوزن الصافي الإجمالي (جم) *
+                    </label>
+                    <input
+                      ref={weightInputRef}
+                      type="number"
+                      inputMode="decimal"
+                      step="0.001"
+                      placeholder="0.000"
+                      className="w-full bg-white border border-amber-300 rounded-lg px-3 py-3.5 font-mono font-black text-slate-900 text-xl text-left outline-none focus:ring-2 focus:ring-amber-500/30"
+                      value={qWeight}
+                      onChange={e => setQWeight(e.target.value === '' ? '' : Number(e.target.value))}
+                      onKeyDown={e => { if (e.key === 'Enter') { const next = document.getElementById('q-wage-input'); next?.focus(); } }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">
+                      <Hash className="w-3.5 h-3.5 text-slate-500" />
+                      عدد القطع (اختياري)
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      step="1"
+                      placeholder="—"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3.5 font-mono font-bold text-slate-900 text-lg text-left outline-none focus:ring-2 focus:ring-amber-500/20"
+                      value={qPieceCount}
+                      onChange={e => setQPieceCount(e.target.value === '' ? '' : Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+
+                {/* أجرة الجرام */}
+                <div className="bg-white border border-[#0F1B33]/10 p-3 rounded-xl">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    أجرة الجرام على العميل (ر.ي/جم) *
+                  </label>
+                  <input
+                    id="q-wage-input"
+                    type="number"
+                    inputMode="numeric"
+                    step="1"
+                    placeholder="0"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3.5 font-mono font-black text-slate-900 text-xl text-left outline-none focus:ring-2 focus:ring-amber-500/30"
+                    value={qWagePerGram}
+                    onChange={e => setQWagePerGram(e.target.value === '' ? '' : Number(e.target.value))}
+                  />
+                </div>
+
+                {/* اختيار الدفعات المحتملة */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 flex items-center gap-1">
+                    <Package className="w-3.5 h-3.5" />
+                    الدفعات المحتمل خروج البضاعة منها (اختياري)
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {availableInventory.map(item => {
+                      const isSelected = qPossibleBatches.includes(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setQPossibleBatches(prev =>
+                              isSelected ? prev.filter(id => id !== item.id) : [...prev, item.id]
+                            );
+                          }}
+                          className={cn(
+                            'text-xs px-3 py-1.5 rounded-lg border font-bold transition-all cursor-pointer',
+                            isSelected
+                              ? 'bg-amber-50 border-amber-400 text-amber-900'
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
+                          )}
+                        >
+                          {item.category} ({item.modelCode}) — {formatWeight(item.availableWeight)} جم
+                        </button>
+                      );
+                    })}
+                    {availableInventory.length === 0 && (
+                      <span className="text-xs text-slate-400 italic">لا توجد دفعات في المخزون</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* ملاحظة داخلية */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 flex items-center gap-1">
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    ملاحظة داخلية (اختيارية)
+                  </label>
+                  <textarea
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-amber-500/20 resize-none"
+                    rows={2}
+                    placeholder="ملاحظات لنفسك..."
+                    value={qNote}
+                    onChange={e => setQNote(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* العمود الأيمن: الملخص وزر الاعتماد */}
+            <div className="space-y-5">
+              {/* ملخص العملية */}
+              <div className="bg-[#0F1B33] text-white p-6 rounded-xl shadow-xl border border-slate-800 space-y-4">
+                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                  <span className="text-xs uppercase font-bold text-[#E49A0A] flex items-center gap-1.5">
+                    <Zap className="w-4 h-4" />
+                    ملخص التوزيع السريع
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg">
+                    <span className="text-slate-400">الصنف:</span>
+                    <span className="font-bold text-white text-sm">{qCategory || '—'}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg">
+                    <span className="text-slate-400">العيار:</span>
+                    <span className="font-bold text-white text-sm">{qKarat}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg">
+                    <span className="text-slate-400">الوزن الصافي:</span>
+                    <span className="font-mono font-bold text-[#E49A0A] text-lg">
+                      {qWeightNum > 0 ? formatWeight(qWeightNum) : '0.000'} جم
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg">
+                    <span className="text-slate-400">أجرة الجرام:</span>
+                    <span className="font-mono font-bold text-white text-sm">
+                      {qWageNum > 0 ? formatCurrency(qWageNum) : '0'} ر.ي
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-white/10">
+                    <div className="bg-[#E49A0A]/10 border border-[#E49A0A]/20 p-4 rounded-xl text-center space-y-1">
+                      <span className="text-[11px] uppercase font-bold text-[#E49A0A] block">إجمالي الأجور</span>
+                      <div className="text-3xl font-mono font-black text-[#E49A0A]" dir="ltr">
+                        {formatCurrency(qTotalWage)} <small className="text-sm font-normal text-white">ر.ي</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* زر الاعتماد */}
+                <button
+                  onClick={handleQuickSubmit}
+                  disabled={!qShopId || !qCategory.trim() || qWeightNum <= 0 || qWageNum <= 0 || qSubmitting}
+                  className="w-full bg-[#E49A0A] disabled:opacity-50 disabled:cursor-not-allowed text-[#091225] py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#C88918] transition-all shadow-lg shadow-[#E49A0A]/10 active:scale-[0.99] cursor-pointer"
+                >
+                  {qSubmitting ? (
+                    <>
+                      <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                      </svg>
+                      جاري التنفيذ...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-5 h-5" />
+                      إصدار السند وحفظ التسوية لوقت لاحق
+                    </>
+                  )}
+                </button>
+
+                <p className="text-[10px] text-slate-500 text-center mt-2">
+                  سيصدر سند معتمد للعميل فورًا. يمكنك توزيع الوزن على الدفعات لاحقًا من صفحة التسويات.
+                </p>
+              </div>
+
+              {/* تنبيه الربح */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+                <span className="text-xs font-bold text-slate-500 flex items-center justify-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  الربح الداخلي:
+                </span>
+                <span className="text-sm font-bold text-slate-400 mt-1 block">قيد الاحتساب</span>
+                <p className="text-[10px] text-slate-400 mt-1">سيُحسب بعد تسوية الدفعات</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════ */}
+      {/*  التوزيع التفصيلي (الكود الحالي)     */}
+      {/* ══════════════════════════════════════ */}
+      {distributionMode === 'detailed' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Inventory Picker & Partial Distribution Configuration */}
         <div className="lg:col-span-2 space-y-6">
@@ -809,7 +1235,8 @@ export default function DistributionToShop() {
             </button>
           </div>
         </div>
-      </div>
+    </div>
+      )}
     </div>
   );
 }

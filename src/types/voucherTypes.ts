@@ -165,6 +165,53 @@ export function buildDistributionVoucherDTO(
   };
 }
 
+// ============================================================
+// Helper: Build QuickDistribution CustomerVoucherDTO
+// Customer-facing only — NO internal costs, profits, or settlement status
+// ============================================================
+export function buildQuickDistributionVoucherDTO(
+  transaction: any,
+  shop: any,
+  identity: VoucherIdentitySnapshot
+): CustomerVoucherDTO {
+  const qd = transaction.quickDistData;
+  if (!qd) throw new Error('Missing quickDistData');
+
+  const items: CustomerVoucherItemDTO[] = [{
+    category: qd.category,
+    modelCode: '',
+    karat: qd.karat,
+    netWeight: qd.totalNetWeight,
+    count: qd.pieceCount ?? null,
+    shopWagePerGram: qd.shopWagePerGram,
+    totalShopWage: qd.totalShopWage,
+  }];
+
+  const karat = qd.karat || 21;
+  const previousGoldBalance = shop?.goldBalances?.[karat] ?? 0;
+  const previousLaborBalance = shop?.laborBalance ?? 0;
+
+  return {
+    voucherNumber: transaction.id,
+    date: transaction.date,
+    type: 'DISTRIBUTE_TO_SHOP',
+    customerName: shop?.name ?? transaction.entityName ?? '---',
+    customerPhone: shop?.phone ?? null,
+    customerAddress: shop?.address ?? null,
+    items,
+    totalWeight: qd.totalNetWeight,
+    totalPieces: qd.pieceCount ?? null,
+    totalShopWages: qd.totalShopWage,
+    previousGoldBalance,
+    previousGoldKarat: karat,
+    previousLaborBalance,
+    newGoldBalance: (previousGoldBalance ?? 0) + qd.totalNetWeight,
+    newLaborBalance: (previousLaborBalance ?? 0) + qd.totalShopWage,
+    identity,
+    // ❌ NOT included: workshop costs, profits, settlement status, batch info
+  };
+}
+
 export function buildCollectionVoucherDTO(
   transaction: any,
   shop: any,

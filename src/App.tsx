@@ -19,6 +19,7 @@ import GoldScrap from './pages/GoldScrap';
 import MarketGold from './pages/MarketGold';
 import WorkshopReturns from './pages/WorkshopReturns';
 import VoucherSettingsPage from './pages/VoucherSettingsPage';
+import QuickDistSettlement from './pages/QuickDistSettlement';
 
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
@@ -88,6 +89,7 @@ function AppContent() {
             <Route path="/receive-workshop" element={<ReceiveFromWorkshop />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/distribution" element={<DistributionToShop />} />
+            <Route path="/quick-settlement" element={<QuickDistSettlement />} />
             <Route path="/returns" element={<Returns />} />
             <Route path="/collections" element={<Collections />} />
             <Route path="/gold-scrap" element={<GoldScrap />} />

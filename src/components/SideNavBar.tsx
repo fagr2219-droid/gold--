@@ -18,7 +18,8 @@ import {
   Wifi,
   WifiOff,
   ShieldCheck,
-  FileText
+  FileText,
+  ArrowLeftRight
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { usePwa } from '../lib/usePwa';
@@ -31,6 +32,7 @@ const navSections = [
       { path: '/', label: 'لوحة القيادة', icon: LayoutDashboard },
       { path: '/market-gold', label: 'ذهب السوق', icon: Scale },
       { path: '/distribution', label: 'توزيع للمحلات', icon: Truck },
+      { path: '/quick-settlement', label: 'تسوية توزيعات سريعة', icon: ArrowLeftRight },
       { path: '/collections', label: 'تحصيل وقبض', icon: Coins },
       { path: '/inventory', label: 'ذهب المخزون', icon: Package },
     ]

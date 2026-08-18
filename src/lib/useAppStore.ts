@@ -376,6 +376,99 @@ export function useAppStore() {
         await repository.save('shops', shop);
       }
     }
+
+    // 6. Quick Distribution (التوزيع السريع)
+    // Gold + labor recorded ONCE. No batch deduction. Profit deferred.
+    if (tx.type === 'QUICK_DISTRIBUTE' && tx.quickDistData) {
+      const shop = await repository.getById('shops', tx.entityId);
+      if (shop) {
+        const qd = tx.quickDistData;
+        const karat = qd.karat;
+        const weight = qd.totalNetWeight;
+        const wage = qd.totalShopWage;
+
+        // Add gold to shop — once
+        shop.goldBalances[karat] = Number(
+          ((shop.goldBalances[karat] || 0) + weight).toFixed(3)
+        );
+
+        // Add labor to shop — once (workshop split deferred until settlement)
+        shop.laborBalance = Number((shop.laborBalance + wage).toFixed(2));
+        // workshopDueBalance and profitBalance stay unchanged — cost unknown yet
+
+        await repository.save('shops', shop);
+      }
+    }
+
+    // 7. Settle Quick Distribution (تسوية التوزيع السريع)
+    // Deduct from batches, compute workshop cost + profit. DO NOT touch gold/labor again.
+    if (tx.type === 'SETTLE_QUICK_DISTRIBUTION' && tx.settlementData) {
+      const sd = tx.settlementData;
+
+      // Load the original quick distribution transaction
+      const originalTx = await repository.getById('transactions', sd.originalTxId);
+      if (originalTx && originalTx.quickDistData) {
+        const shop = await repository.getById('shops', originalTx.entityId);
+        let totalWorkshopCost = 0;
+
+        // Deduct weight from each batch
+        for (const row of sd.rows) {
+          if (row.distributedWeight > 0.0001 && row.batchId) {
+            const invBatch = await repository.getById('inventory', row.batchId);
+            if (invBatch) {
+              const newDistributedWeight = Number(((invBatch.distributedWeight || 0) + row.distributedWeight).toFixed(3));
+              const newAvailableWeight = Number(
+                Math.max(0, (invBatch.originalNetWeight || invBatch.netWeight) - newDistributedWeight + (invBatch.returnedWeight || 0)).toFixed(3)
+              );
+
+              // Update pieces if applicable
+              let newAvailableCount = invBatch.availableCount;
+              if (invBatch.availableCount !== null && invBatch.availableCount !== undefined && row.piecesTaken) {
+                newAvailableCount = Math.max(0, invBatch.availableCount - row.piecesTaken);
+              }
+
+              invBatch.distributedWeight = newDistributedWeight;
+              invBatch.availableWeight = newAvailableWeight;
+              invBatch.availableCount = newAvailableCount;
+              await repository.save('inventory', invBatch);
+
+              // Calculate workshop cost for this part
+              const batchWageWeight = invBatch.wageCalculationWeight || invBatch.originalNetWeight || invBatch.netWeight;
+              const batchTotalWage = invBatch.totalWorkshopWage || 0;
+              const costForPart = batchWageWeight > 0
+                ? Number((batchTotalWage * (row.distributedWeight / batchWageWeight)).toFixed(2))
+                : 0;
+              row.workshopCostForPart = costForPart;
+              totalWorkshopCost += costForPart;
+            }
+          }
+        }
+
+        // Update original transaction with settlement results
+        const totalShopWage = originalTx.quickDistData.totalShopWage;
+        const realProfit = Number((totalShopWage - totalWorkshopCost).toFixed(2));
+        const totalWeight = originalTx.quickDistData.totalNetWeight;
+        const weightedAvgCost = totalWeight > 0
+          ? Number((totalWorkshopCost / totalWeight).toFixed(2))
+          : 0;
+
+        originalTx.quickDistData.settlementStatus = 'SETTLED';
+        originalTx.quickDistData.pendingWeight = 0;
+        originalTx.quickDistData.settledAt = new Date().toISOString();
+        originalTx.quickDistData.totalWorkshopCost = totalWorkshopCost;
+        originalTx.quickDistData.weightedAvgCost = weightedAvgCost;
+        originalTx.quickDistData.realProfit = realProfit;
+        originalTx.settlementData = sd;
+        await repository.save('transactions', originalTx);
+
+        // Now update shop's workshopDue and profit balances
+        if (shop) {
+          shop.workshopDueBalance = Number((shop.workshopDueBalance + totalWorkshopCost).toFixed(2));
+          shop.profitBalance = Number((shop.profitBalance + realProfit).toFixed(2));
+          await repository.save('shops', shop);
+        }
+      }
+    }
     
     await refreshData();
     // Create an automatic snapshot after every successful transaction

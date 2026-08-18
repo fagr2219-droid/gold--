@@ -74,6 +74,8 @@ export interface InventoryItem {
 export type TransactionType = 
   | 'RECEIVE_FROM_WORKSHOP'
   | 'DISTRIBUTE_TO_SHOP'
+  | 'QUICK_DISTRIBUTE'
+  | 'SETTLE_QUICK_DISTRIBUTION'
   | 'COLLECT_FROM_SHOP'
   | 'REVERSE_COLLECTION'
   | 'PAY_TO_WORKSHOP'
@@ -81,6 +83,51 @@ export type TransactionType =
   | 'RETURN_TO_WORKSHOP'
   | 'SCRAP_CONVERSION'
   | 'EXPENSE';
+
+// ── التوزيع السريع ──
+export type QuickDistSettlementStatus = 'PENDING' | 'SETTLED';
+
+export interface QuickDistributionData {
+  category: string;                   // اسم الصنف العام (محابس متنوعة)
+  karat: Karat;                       // العيار
+  totalNetWeight: number;             // الوزن الصافي الإجمالي الموزع
+  pieceCount?: number | null;         // عدد القطع (اختياري)
+  shopWagePerGram: number;            // أجرة الجرام على العميل
+  totalShopWage: number;              // إجمالي الأجور (محسوب تلقائيًا)
+  possibleBatchIds?: string[];        // الدفعات المحتمل خروج البضاعة منها
+  internalNote?: string;              // ملاحظة داخلية
+  settlementStatus: QuickDistSettlementStatus;
+  pendingWeight: number;              // وزن بانتظار التوزيع على الدفعات
+  settledAt?: string;                 // تاريخ التسوية
+  settledBy?: string;                 // من نفذ التسوية
+  // بيانات ما بعد التسوية
+  totalWorkshopCost?: number;         // إجمالي تكلفة الورشة بعد التسوية
+  weightedAvgCost?: number;           // متوسط التكلفة الموزون
+  realProfit?: number;                // الربح الحقيقي بعد التسوية
+}
+
+export interface SettlementRow {
+  batchId: string;                    // معرّف الدفعة
+  category: string;                   // نوع الصنف
+  karat: Karat;                       // العيار
+  originalBatchWeight: number;        // الوزن الأصلي للدفعة (للعرض فقط)
+  currentBalance: number;             // الرصيد الصافي الحالي
+  weightBefore: number;               // الوزن القائم قبل أخذ العميل
+  weightAfter: number;                // الوزن القائم بعد أخذ العميل
+  distributedWeight: number;          // الفرق الموزع (محسوب تلقائيًا)
+  piecesTaken?: number | null;        // عدد القطع المأخوذة (اختياري)
+  // تكلفة الورشة لهذا الجزء (تُحسب عند الاعتماد)
+  workshopCostForPart?: number;
+}
+
+export interface SettlementData {
+  originalTxId: string;               // معرف سند التوزيع السريع الأصلي
+  rows: SettlementRow[];              // صفوف التسوية
+  totalSettledWeight: number;         // مجموع فروقات الأكياس
+  tolerance: number;                  // حد السماح (±0.030 جم افتراضيًا)
+  scaleDiffReason?: string;           // سبب فرق الميزان
+  scaleDiffWeight?: number;           // وزن فرق الميزان
+}
 
 export type WorkshopReturnReason = 
   | 'UNSOLD'                   // لم تُبع
@@ -296,6 +343,10 @@ export interface Transaction {
   totalScrapGoldWeight?: Record<Karat, number>;
   workshopLaborShare?: number; // حصة الورشة من الأجور النقدية فقط
   distributorProfitShare?: number; // حصة الموزع من الأجور النقدية فقط
+  
+  // ── التوزيع السريع ──
+  quickDistData?: QuickDistributionData;
+  settlementData?: SettlementData;
 }
 
 export interface Settings {
